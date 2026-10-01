@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "Salgados.Core": {
+      "commandName": "Project"
+    },
+    "Perfil 1": {
+      "commandName": "Executable",
+      "executablePath": "C:\\Users\\Wesle\\Documents\\LanchoneteMãe\\src\\backend\\Salgados.Api\\Salgados.Api.csproj"
+    }
+  }
+}
