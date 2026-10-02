@@ -116,16 +116,48 @@ public class AuthService : IAuthService
         await _context.SaveChangesAsync();
     }
 
+    private async Task<int> GetNextAttemptNumberForIpAsync(string? ipAddress)
+    {
+        if (string.IsNullOrWhiteSpace(ipAddress))
+            return 1;
+
+        var previousAttempts = await _context.LoginAttempts
+            .CountAsync(attempt => attempt.IpAddress == ipAddress && attempt.ClearedAt == null);
+        return previousAttempts + 1;
+    }
+
     private async Task<bool> RecordFailedLoginAsync(string email, string? ipAddress)
     {
         var now = DateTime.UtcNow;
+        var numberOfAt = await GetNextAttemptNumberForIpAsync(ipAddress);
+
         _context.LoginAttempts.Add(new LoginAttempt
         {
             Email = email,
             IpAddress = ipAddress,
-            AttemptedAt = now
+            AttemptedAt = now,
+            NumberOfAt = numberOfAt
         });
         await _context.SaveChangesAsync();
+
+        // Se o número de tentativas deste IP atingiu o limite (5), bloqueia imediatamente
+        if (numberOfAt >= LoginLockedException.AttemptLimit)
+        {
+            var blockedLogin = await _context.BlockedLogins
+                .FirstOrDefaultAsync(blocked => blocked.Email == email);
+            if (blockedLogin is null)
+            {
+                _context.BlockedLogins.Add(new BlockedLogin
+                {
+                    Email = email,
+                    BlockedAt = now,
+                    FailedAttempts = numberOfAt,
+                    CreatedAt = now
+                });
+                await _context.SaveChangesAsync();
+            }
+            return true;
+        }
 
         if (_context.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
         {
@@ -151,9 +183,9 @@ public class AuthService : IAuthService
         if (recentFailedAttempts < LoginLockedException.AttemptLimit)
             return false;
 
-        var blockedLogin = await _context.BlockedLogins
+        var existingBlocked = await _context.BlockedLogins
             .FirstOrDefaultAsync(blocked => blocked.Email == email);
-        if (blockedLogin is not null)
+        if (existingBlocked is not null)
             return true;
 
         _context.BlockedLogins.Add(new BlockedLogin
@@ -169,11 +201,15 @@ public class AuthService : IAuthService
 
     private async Task RecordBlockedLoginAttemptAsync(string email, string? ipAddress)
     {
+        var now = DateTime.UtcNow;
+        var numberOfAt = await GetNextAttemptNumberForIpAsync(ipAddress);
+
         _context.LoginAttempts.Add(new LoginAttempt
         {
             Email = email,
             IpAddress = ipAddress,
-            AttemptedAt = DateTime.UtcNow
+            AttemptedAt = now,
+            NumberOfAt = numberOfAt
         });
         await _context.SaveChangesAsync();
     }

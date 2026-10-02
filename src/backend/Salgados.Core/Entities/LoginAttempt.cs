@@ -6,4 +6,5 @@ public class LoginAttempt : BaseEntity
     public string? IpAddress { get; set; }
     public DateTime AttemptedAt { get; set; }
     public DateTime? ClearedAt { get; set; }
+    public int NumberOfAt { get; set; }
 }

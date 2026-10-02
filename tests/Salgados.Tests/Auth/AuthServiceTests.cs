@@ -182,6 +182,65 @@ public class AuthServiceTests
         (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(LoginLockedException.AttemptLimit - 1);
     }
 
+    [Fact]
+    public async Task LoginAsync_ShouldIncrementNumberOfAt_WhenSameIpAttemptsLogin()
+    {
+        await using var context = CreateContext();
+        var service = new AuthService(context, CreateTokenService().Object);
+        var request = new LoginRequest { Email = "user@example.com", Password = "wrong-password" };
+        const string ip = "192.168.1.100";
+
+        // 3 tentativas falhas com o mesmo IP
+        for (var i = 0; i < 3; i++)
+        {
+            var action = () => service.LoginAsync(request, ip);
+            await action.Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        var attempts = await context.LoginAttempts
+            .Where(a => a.IpAddress == ip)
+            .OrderBy(a => a.Id)
+            .ToListAsync();
+
+        attempts.Should().HaveCount(3);
+        attempts[0].NumberOfAt.Should().Be(1);
+        attempts[1].NumberOfAt.Should().Be(2);
+        attempts[2].NumberOfAt.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldLockUser_WhenNumberOfAtReachesFive()
+    {
+        await using var context = CreateContext();
+        var service = new AuthService(context, CreateTokenService().Object);
+        var request = new LoginRequest { Email = "user@example.com", Password = "wrong-password" };
+        const string ip = "203.0.113.50";
+
+        // Tentativas 1 a 4 devem falhar com UnauthorizedAccessException
+        for (var i = 0; i < 4; i++)
+        {
+            var action = () => service.LoginAsync(request, ip);
+            await action.Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        // A 5ª tentativa (NumberOfAt = 5) deve bloquear e lançar LoginLockedException
+        var fifthAttempt = () => service.LoginAsync(request, ip);
+        await fifthAttempt.Should().ThrowAsync<LoginLockedException>();
+
+        // Verifica que o bloqueio foi persistido na tabela BlockedLogins
+        var blocked = await context.BlockedLogins.FirstOrDefaultAsync(b => b.Email == "user@example.com");
+        blocked.Should().NotBeNull();
+        blocked!.FailedAttempts.Should().Be(5);
+
+        // A última tentativa registrada deve ter NumberOfAt = 5
+        var lastAttempt = await context.LoginAttempts
+            .Where(a => a.IpAddress == ip)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync();
+        lastAttempt.Should().NotBeNull();
+        lastAttempt!.NumberOfAt.Should().Be(5);
+    }
+
     private static AppDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
