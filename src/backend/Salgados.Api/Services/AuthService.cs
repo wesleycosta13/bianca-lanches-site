@@ -12,6 +12,8 @@ public interface IAuthService
     Task<AuthResponse> RegisterAsync(RegisterRequest request);
     Task<List<BlockedLoginResponse>> GetBlockedLoginsAsync();
     Task UnblockLoginAsync(string email);
+    Task<List<LoginAttemptResponse>> GetLoginAttemptsAsync();
+    Task<LoginAttemptResponse> UpdateLoginAttemptAsync(int id, int numberOfAt);
 }
 
 public class AuthService : IAuthService
@@ -33,7 +35,7 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(blocked => blocked.Email == normalizedEmail);
         if (blockedLogin is not null)
         {
-            await RecordBlockedLoginAttemptAsync(normalizedEmail, ipAddress);
+            await RecordAttemptAsync(normalizedEmail, ipAddress, DateTime.UtcNow);
             throw new LoginLockedException();
         }
 
@@ -47,14 +49,18 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("E-mail ou senha inválidos.");
         }
 
-        var unclearedAttempts = await _context.LoginAttempts
-            .Where(attempt => attempt.Email == normalizedEmail
-                && attempt.ClearedAt == null
-                && attempt.AttemptedAt >= DateTime.UtcNow - FailedAttemptWindow)
+        // Login com sucesso: reseta as tentativas ativas deste IP e e-mail
+        var attemptsToClear = await _context.LoginAttempts
+            .Where(attempt => (attempt.Email == normalizedEmail || (!string.IsNullOrWhiteSpace(ipAddress) && attempt.IpAddress == ipAddress))
+                && attempt.ClearedAt == null)
             .ToListAsync();
-        foreach (var attempt in unclearedAttempts)
+
+        foreach (var attempt in attemptsToClear)
+        {
+            attempt.NumberOfAt = 0;
             attempt.ClearedAt = DateTime.UtcNow;
-        if (unclearedAttempts.Count > 0)
+        }
+        if (attemptsToClear.Count > 0)
             await _context.SaveChangesAsync();
 
         var (token, expiresAt) = _tokenService.GenerateToken(user);
@@ -79,8 +85,7 @@ public class AuthService : IAuthService
         foreach (var blockedLogin in blockedLogins)
         {
             var ipAddresses = await _context.LoginAttempts
-                .Where(attempt => attempt.Email == blockedLogin.Email
-                    && attempt.AttemptedAt >= blockedLogin.BlockedAt - FailedAttemptWindow)
+                .Where(attempt => attempt.Email == blockedLogin.Email)
                 .Select(attempt => attempt.IpAddress)
                 .Distinct()
                 .ToListAsync();
@@ -107,41 +112,108 @@ public class AuthService : IAuthService
 
         _context.BlockedLogins.Remove(blockedLogin);
 
-        var unclearedAttempts = await _context.LoginAttempts
-            .Where(attempt => attempt.Email == normalizedEmail && attempt.ClearedAt == null)
+        var attempts = await _context.LoginAttempts
+            .Where(attempt => attempt.Email == normalizedEmail)
             .ToListAsync();
-        foreach (var attempt in unclearedAttempts)
+        foreach (var attempt in attempts)
+        {
+            attempt.NumberOfAt = 0;
             attempt.ClearedAt = DateTime.UtcNow;
+        }
 
         await _context.SaveChangesAsync();
     }
 
-    private async Task<int> GetNextAttemptNumberForIpAsync(string? ipAddress)
+    public async Task<List<LoginAttemptResponse>> GetLoginAttemptsAsync()
     {
-        if (string.IsNullOrWhiteSpace(ipAddress))
-            return 1;
+        return await _context.LoginAttempts
+            .OrderByDescending(attempt => attempt.AttemptedAt)
+            .Select(attempt => new LoginAttemptResponse
+            {
+                Id = attempt.Id,
+                Email = attempt.Email,
+                IpAddress = attempt.IpAddress,
+                NumberOfAt = attempt.NumberOfAt,
+                AttemptedAt = attempt.AttemptedAt,
+                ClearedAt = attempt.ClearedAt
+            })
+            .ToListAsync();
+    }
 
-        var previousAttempts = await _context.LoginAttempts
-            .CountAsync(attempt => attempt.IpAddress == ipAddress && attempt.ClearedAt == null);
-        return previousAttempts + 1;
+    public async Task<LoginAttemptResponse> UpdateLoginAttemptAsync(int id, int numberOfAt)
+    {
+        var attempt = await _context.LoginAttempts.FindAsync(id);
+        if (attempt is null)
+            throw new KeyNotFoundException("Tentativa de login não encontrada.");
+
+        attempt.NumberOfAt = Math.Max(0, numberOfAt);
+        if (attempt.NumberOfAt == 0)
+        {
+            attempt.ClearedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            attempt.ClearedAt = null;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return new LoginAttemptResponse
+        {
+            Id = attempt.Id,
+            Email = attempt.Email,
+            IpAddress = attempt.IpAddress,
+            NumberOfAt = attempt.NumberOfAt,
+            AttemptedAt = attempt.AttemptedAt,
+            ClearedAt = attempt.ClearedAt
+        };
+    }
+
+    private async Task<LoginAttempt> RecordAttemptAsync(string email, string? ipAddress, DateTime now)
+    {
+        LoginAttempt? attempt = null;
+        if (!string.IsNullOrWhiteSpace(ipAddress))
+        {
+            attempt = await _context.LoginAttempts
+                .FirstOrDefaultAsync(a => a.IpAddress == ipAddress);
+        }
+        else
+        {
+            attempt = await _context.LoginAttempts
+                .FirstOrDefaultAsync(a => a.Email == email);
+        }
+
+        if (attempt is not null)
+        {
+            attempt.Email = email;
+            attempt.NumberOfAt += 1;
+            attempt.AttemptedAt = now;
+            attempt.ClearedAt = null;
+        }
+        else
+        {
+            attempt = new LoginAttempt
+            {
+                Email = email,
+                IpAddress = ipAddress,
+                AttemptedAt = now,
+                NumberOfAt = 1,
+                ClearedAt = null
+            };
+            _context.LoginAttempts.Add(attempt);
+        }
+
+        await _context.SaveChangesAsync();
+        return attempt;
     }
 
     private async Task<bool> RecordFailedLoginAsync(string email, string? ipAddress)
     {
         var now = DateTime.UtcNow;
-        var numberOfAt = await GetNextAttemptNumberForIpAsync(ipAddress);
-
-        _context.LoginAttempts.Add(new LoginAttempt
-        {
-            Email = email,
-            IpAddress = ipAddress,
-            AttemptedAt = now,
-            NumberOfAt = numberOfAt
-        });
-        await _context.SaveChangesAsync();
+        var attempt = await RecordAttemptAsync(email, ipAddress, now);
 
         // Se o número de tentativas deste IP atingiu o limite (5), bloqueia imediatamente
-        if (numberOfAt >= LoginLockedException.AttemptLimit)
+        if (attempt.NumberOfAt >= LoginLockedException.AttemptLimit)
         {
             var blockedLogin = await _context.BlockedLogins
                 .FirstOrDefaultAsync(blocked => blocked.Email == email);
@@ -151,7 +223,7 @@ public class AuthService : IAuthService
                 {
                     Email = email,
                     BlockedAt = now,
-                    FailedAttempts = numberOfAt,
+                    FailedAttempts = attempt.NumberOfAt,
                     CreatedAt = now
                 });
                 await _context.SaveChangesAsync();
@@ -159,59 +231,12 @@ public class AuthService : IAuthService
             return true;
         }
 
-        if (_context.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
-        {
-            await _context.Database.ExecuteSqlInterpolatedAsync($"""
-                INSERT INTO "BlockedLogins" ("Email", "BlockedAt", "FailedAttempts", "CreatedAt")
-                SELECT {email}, {now}, COUNT(*), {now}
-                FROM "LoginAttempts"
-                WHERE "Email" = {email}
-                    AND "ClearedAt" IS NULL
-                    AND "AttemptedAt" >= {now - FailedAttemptWindow}
-                HAVING COUNT(*) >= {LoginLockedException.AttemptLimit}
-                ON CONFLICT ("Email") DO NOTHING;
-                """);
-
-            return await _context.BlockedLogins.AnyAsync(blocked => blocked.Email == email);
-        }
-
-        var recentFailedAttempts = await _context.LoginAttempts
-            .CountAsync(attempt => attempt.Email == email
-                && attempt.ClearedAt == null
-                && attempt.AttemptedAt >= now - FailedAttemptWindow);
-
-        if (recentFailedAttempts < LoginLockedException.AttemptLimit)
-            return false;
-
-        var existingBlocked = await _context.BlockedLogins
-            .FirstOrDefaultAsync(blocked => blocked.Email == email);
-        if (existingBlocked is not null)
-            return true;
-
-        _context.BlockedLogins.Add(new BlockedLogin
-        {
-            Email = email,
-            BlockedAt = now,
-            FailedAttempts = recentFailedAttempts,
-            CreatedAt = now
-        });
-        await _context.SaveChangesAsync();
-        return true;
+        return false;
     }
 
     private async Task RecordBlockedLoginAttemptAsync(string email, string? ipAddress)
     {
-        var now = DateTime.UtcNow;
-        var numberOfAt = await GetNextAttemptNumberForIpAsync(ipAddress);
-
-        _context.LoginAttempts.Add(new LoginAttempt
-        {
-            Email = email,
-            IpAddress = ipAddress,
-            AttemptedAt = now,
-            NumberOfAt = numberOfAt
-        });
-        await _context.SaveChangesAsync();
+        await RecordAttemptAsync(email, ipAddress, DateTime.UtcNow);
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)

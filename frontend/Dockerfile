@@ -5,6 +5,9 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 
+ARG VITE_ADMIN_PATH=/admin
+ENV VITE_ADMIN_PATH=$VITE_ADMIN_PATH
+
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime

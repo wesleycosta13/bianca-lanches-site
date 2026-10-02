@@ -41,6 +41,7 @@ public class AppDbContext : DbContext
             entity.Property(attempt => attempt.Email).IsRequired().HasMaxLength(150);
             entity.Property(attempt => attempt.IpAddress).HasMaxLength(45);
             entity.HasIndex(attempt => new { attempt.Email, attempt.AttemptedAt });
+            entity.HasIndex(attempt => attempt.IpAddress).IsUnique().HasFilter("\"IpAddress\" IS NOT NULL");
         });
 
         modelBuilder.Entity<BlockedLogin>(entity =>

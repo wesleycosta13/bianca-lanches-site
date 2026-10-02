@@ -7,6 +7,7 @@ type ApiResponse<T> = { success: boolean; message: string; data: T | null };
 type AuthResponse = { token: string; name: string; email: string; role: string; expiresAt: string };
 type AdminUser = { id: string; name: string; email: string; role: string };
 type BlockedLogin = { email: string; blockedAt: string; failedAttempts: number; ipAddresses: string[] };
+type LoginAttempt = { id: number; email: string; ipAddress: string | null; numberOfAt: number; attemptedAt: string; clearedAt: string | null };
 type OrderItem = { id: number; productId: number; productName: string; quantity: number; unitPrice: number; subtotal: number };
 type Order = {
   id: number;
@@ -140,6 +141,9 @@ function AdminPanel() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [blockedLogins, setBlockedLogins] = useState<BlockedLogin[]>([]);
+  const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
+  const [editingAttemptId, setEditingAttemptId] = useState<number | null>(null);
+  const [editingCountValue, setEditingCountValue] = useState<number>(0);
   const [view, setView] = useState<"orders" | "products" | "security">("orders");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -185,7 +189,8 @@ function AdminPanel() {
       apiRequest<Product[]>("/products", token),
       apiRequest<Category[]>("/categories", token),
       apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
-    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories, loadedBlockedLogins]) => {
+      apiRequest<LoginAttempt[]>("/auth/login-attempts", token),
+    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories, loadedBlockedLogins, loadedAttempts]) => {
       if (currentAdmin.role !== "Admin") throw new Error("Esta conta não tem permissão de administrador.");
       if (!isCurrent) return;
       setAdmin(currentAdmin);
@@ -193,6 +198,7 @@ function AdminPanel() {
       setProducts(loadedProducts);
       setCategories(loadedCategories);
       setBlockedLogins(loadedBlockedLogins);
+      setLoginAttempts(loadedAttempts);
       setError("");
     }).catch((requestError: unknown) => {
       if (!isCurrent) return;
@@ -249,8 +255,14 @@ function AdminPanel() {
       setOrders(loadedOrders);
       setProducts(loadedProducts);
       setCategories(loadedCategories);
-      if (view === "security")
-        setBlockedLogins(await apiRequest<BlockedLogin[]>("/auth/blocked-logins", token));
+      if (view === "security") {
+        const [loadedBlocked, loadedAttempts] = await Promise.all([
+          apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
+          apiRequest<LoginAttempt[]>("/auth/login-attempts", token),
+        ]);
+        setBlockedLogins(loadedBlocked);
+        setLoginAttempts(loadedAttempts);
+      }
     } catch (requestError) {
       setError(errorText(requestError));
     } finally {
@@ -264,7 +276,12 @@ function AdminPanel() {
     setRefreshing(true);
     setError("");
     try {
-      setBlockedLogins(await apiRequest<BlockedLogin[]>("/auth/blocked-logins", token));
+      const [loadedBlocked, loadedAttempts] = await Promise.all([
+        apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
+        apiRequest<LoginAttempt[]>("/auth/login-attempts", token),
+      ]);
+      setBlockedLogins(loadedBlocked);
+      setLoginAttempts(loadedAttempts);
     } catch (requestError) {
       setError(errorText(requestError));
     } finally {
@@ -280,6 +297,23 @@ function AdminPanel() {
       await apiRequest<unknown>(`/auth/blocked-logins?email=${encodeURIComponent(blockedLogin.email)}`, token, { method: "DELETE" });
       setBlockedLogins((current) => current.filter((entry) => entry.email !== blockedLogin.email));
       setFeedback(`Acesso liberado para ${blockedLogin.email}.`);
+    } catch (requestError) {
+      setError(errorText(requestError));
+    }
+  }
+
+  async function updateAttemptCount(id: number, count: number) {
+    if (!token) return;
+    setError("");
+    setFeedback("");
+    try {
+      const updated = await apiRequest<LoginAttempt>(`/auth/login-attempts/${id}`, token, {
+        method: "PUT",
+        body: JSON.stringify({ numberOfAt: count }),
+      });
+      setLoginAttempts((current) => current.map((item) => (item.id === id ? updated : item)));
+      setEditingAttemptId(null);
+      setFeedback(`Tentativas atualizadas para ${count}.`);
     } catch (requestError) {
       setError(errorText(requestError));
     }
@@ -524,6 +558,60 @@ function AdminPanel() {
                 <button className="admin-secondary-button" onClick={() => unblockLogin(blockedLogin)}>Liberar acesso</button>
               </article>)}
             </div> : <div className="admin-empty"><ShieldCheck size={25} /><strong>Nenhum acesso bloqueado</strong><span>Os bloqueios permanentes aparecerão aqui.</span></div>}
+
+            <div className="admin-list-heading" style={{ marginTop: "2rem" }}>
+              <div><h2>Monitoramento de IPs e Tentativas</h2><span>Registros atualizados por IP (máx. 5 tentativas em 15 min)</span></div>
+            </div>
+            {loginAttempts.length ? <div className="admin-order-list">
+              {loginAttempts.map((attempt) => (
+                <article className="admin-order-row" key={attempt.id}>
+                  <div className="admin-order-main">
+                    <div className="admin-order-heading">
+                      <strong>IP: {attempt.ipAddress || "Não identificado"}</strong>
+                      <time>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(attempt.attemptedAt))}</time>
+                    </div>
+                    <p>Último e-mail: <strong>{attempt.email}</strong></p>
+                    <p>Tentativas consecutivas: <strong style={{ color: attempt.numberOfAt >= 5 ? "#e53e3e" : "inherit" }}>{attempt.numberOfAt} / 5</strong> {attempt.clearedAt && <small style={{ color: "#38a169" }}>(Resetado)</small>}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                    {editingAttemptId === attempt.id ? (
+                      <div style={{ display: "flex", gap: "0.3rem", alignItems: "center" }}>
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          style={{ width: "60px", padding: "0.4rem" }}
+                          value={editingCountValue}
+                          onChange={(e) => setEditingCountValue(Number(e.target.value))}
+                        />
+                        <button className="admin-primary-button" style={{ padding: "0.4rem 0.8rem" }} onClick={() => updateAttemptCount(attempt.id, editingCountValue)}>Salvar</button>
+                        <button className="admin-secondary-button" style={{ padding: "0.4rem 0.8rem" }} onClick={() => setEditingAttemptId(null)}>Cancelar</button>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          className="admin-secondary-button"
+                          onClick={() => {
+                            setEditingAttemptId(attempt.id);
+                            setEditingCountValue(attempt.numberOfAt);
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          className="admin-secondary-button"
+                          style={{ color: "#38a169", borderColor: "#38a169" }}
+                          onClick={() => updateAttemptCount(attempt.id, 0)}
+                          title="Zerar o contador para liberar o IP"
+                        >
+                          Zerar (0)
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div> : <div className="admin-empty"><ShieldCheck size={25} /><strong>Nenhuma tentativa registrada</strong><span>As tentativas de acesso serão listadas e atualizadas aqui por IP.</span></div>}
           </section>
         )}
 

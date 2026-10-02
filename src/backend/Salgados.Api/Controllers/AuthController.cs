@@ -43,9 +43,38 @@ public class AuthController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status423Locked)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var ipAddress = GetClientIpAddress();
         var response = await _authService.LoginAsync(request, ipAddress);
         return Ok(ApiResponse<AuthResponse>.Ok(response, "Login realizado com sucesso."));
+    }
+
+    private string? GetClientIpAddress()
+    {
+        var forwardedFor = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        {
+            var firstIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)[0];
+            if (System.Net.IPAddress.TryParse(firstIp, out var parsedForwarded))
+                return NormalizeIp(parsedForwarded);
+        }
+
+        var realIp = HttpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(realIp) && System.Net.IPAddress.TryParse(realIp, out var parsedReal))
+            return NormalizeIp(parsedReal);
+
+        var remoteIp = HttpContext.Connection.RemoteIpAddress;
+        return remoteIp is not null ? NormalizeIp(remoteIp) : null;
+    }
+
+    private static string NormalizeIp(System.Net.IPAddress ip)
+    {
+        if (System.Net.IPAddress.IsLoopback(ip) || ip.ToString() == "::1" || ip.ToString() == "0.0.0.1")
+            return "127.0.0.1";
+
+        if (ip.IsIPv4MappedToIPv6)
+            return ip.MapToIPv4().ToString();
+
+        return ip.ToString();
     }
 
     [HttpGet("blocked-logins")]
@@ -65,6 +94,25 @@ public class AuthController : ControllerBase
     {
         await _authService.UnblockLoginAsync(email);
         return Ok(ApiResponse.Ok("Acesso liberado com sucesso."));
+    }
+
+    [HttpGet("login-attempts")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<List<LoginAttemptResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetLoginAttempts()
+    {
+        var attempts = await _authService.GetLoginAttemptsAsync();
+        return Ok(ApiResponse<List<LoginAttemptResponse>>.Ok(attempts));
+    }
+
+    [HttpPut("login-attempts/{id:int}")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<LoginAttemptResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateLoginAttempt([FromRoute] int id, [FromBody] UpdateLoginAttemptRequest request)
+    {
+        var updated = await _authService.UpdateLoginAttemptAsync(id, request.NumberOfAt);
+        return Ok(ApiResponse<LoginAttemptResponse>.Ok(updated, "Tentativa atualizada com sucesso."));
     }
 
     /// <summary>

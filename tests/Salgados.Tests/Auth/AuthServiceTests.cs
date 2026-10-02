@@ -122,10 +122,11 @@ public class AuthServiceTests
         await lockout.Should().ThrowAsync<LoginLockedException>();
 
         var attempts = await context.LoginAttempts.OrderBy(attempt => attempt.Id).ToListAsync();
-        attempts.Should().HaveCount(LoginLockedException.AttemptLimit);
+        attempts.Should().HaveCount(1);
         attempts.Should().OnlyContain(attempt =>
             attempt.Email == "admin@example.com"
             && attempt.IpAddress == "192.0.2.10"
+            && attempt.NumberOfAt == LoginLockedException.AttemptLimit
             && attempt.AttemptedAt != default);
         (await context.BlockedLogins.SingleAsync()).FailedAttempts.Should().Be(LoginLockedException.AttemptLimit);
 
@@ -133,7 +134,7 @@ public class AuthServiceTests
             new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
             "198.51.100.20");
         await validPassword.Should().ThrowAsync<LoginLockedException>();
-        (await context.LoginAttempts.CountAsync()).Should().Be(LoginLockedException.AttemptLimit + 1);
+        (await context.LoginAttempts.CountAsync()).Should().Be(2);
 
         var blockedLogins = await service.GetBlockedLoginsAsync();
         blockedLogins.Should().ContainSingle();
@@ -143,7 +144,7 @@ public class AuthServiceTests
 
         await service.UnblockLoginAsync(" ADMIN@example.com ");
         (await context.BlockedLogins.CountAsync()).Should().Be(0);
-        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(LoginLockedException.AttemptLimit + 1);
+        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(2);
         var response = await service.LoginAsync(
             new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
             "192.0.2.10");
@@ -179,7 +180,9 @@ public class AuthServiceTests
 
         response.Role.Should().Be(nameof(UserRole.Admin));
         (await context.BlockedLogins.CountAsync()).Should().Be(0);
-        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(LoginLockedException.AttemptLimit - 1);
+        var clearedAttempt = await context.LoginAttempts.SingleAsync(attempt => attempt.IpAddress == "192.0.2.10");
+        clearedAttempt.ClearedAt.Should().NotBeNull();
+        clearedAttempt.NumberOfAt.Should().Be(0);
     }
 
     [Fact]
@@ -199,13 +202,10 @@ public class AuthServiceTests
 
         var attempts = await context.LoginAttempts
             .Where(a => a.IpAddress == ip)
-            .OrderBy(a => a.Id)
             .ToListAsync();
 
-        attempts.Should().HaveCount(3);
-        attempts[0].NumberOfAt.Should().Be(1);
-        attempts[1].NumberOfAt.Should().Be(2);
-        attempts[2].NumberOfAt.Should().Be(3);
+        attempts.Should().HaveCount(1);
+        attempts[0].NumberOfAt.Should().Be(3);
     }
 
     [Fact]
@@ -232,13 +232,34 @@ public class AuthServiceTests
         blocked.Should().NotBeNull();
         blocked!.FailedAttempts.Should().Be(5);
 
-        // A última tentativa registrada deve ter NumberOfAt = 5
-        var lastAttempt = await context.LoginAttempts
-            .Where(a => a.IpAddress == ip)
-            .OrderByDescending(a => a.Id)
-            .FirstOrDefaultAsync();
-        lastAttempt.Should().NotBeNull();
-        lastAttempt!.NumberOfAt.Should().Be(5);
+        // O único registro para o IP deve ter NumberOfAt = 5
+        var attempt = await context.LoginAttempts.SingleAsync(a => a.IpAddress == ip);
+        attempt.NumberOfAt.Should().Be(5);
+    }
+
+    [Fact]
+    public async Task UpdateLoginAttemptAsync_ShouldAllowAdminToEditNumberOfAt()
+    {
+        await using var context = CreateContext();
+        var service = new AuthService(context, CreateTokenService().Object);
+
+        context.LoginAttempts.Add(new LoginAttempt
+        {
+            Email = "user@example.com",
+            IpAddress = "10.0.0.1",
+            NumberOfAt = 4,
+            AttemptedAt = DateTime.UtcNow
+        });
+        await context.SaveChangesAsync();
+
+        var attemptId = (await context.LoginAttempts.FirstAsync()).Id;
+
+        // Admin edita o número de tentativas para 1
+        var updated = await service.UpdateLoginAttemptAsync(attemptId, 1);
+        updated.NumberOfAt.Should().Be(1);
+
+        var inDb = await context.LoginAttempts.FindAsync(attemptId);
+        inDb!.NumberOfAt.Should().Be(1);
     }
 
     private static AppDbContext CreateContext()
