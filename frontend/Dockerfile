@@ -5,8 +5,6 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
 
-ARG VITE_WHATSAPP_CONTATO=
-ENV VITE_WHATSAPP_CONTATO=$VITE_WHATSAPP_CONTATO
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine AS runtime

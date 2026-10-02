@@ -54,7 +54,11 @@ function CheckoutDetails({ neighborhood, onNeighborhoodChange, street, onStreetC
   );
 }
 
-const whatsappNumber = (import.meta.env.VITE_WHATSAPP_CONTATO ?? "").replace(/\D/g, "");
+function formatWhatsAppNumber(phoneNumber: string) {
+  const localNumber = phoneNumber.replace(/\D/g, "").slice(-11);
+  if (localNumber.length !== 11) return localNumber;
+  return `${localNumber.slice(0, 2)} ${localNumber.slice(2, 7)}-${localNumber.slice(7)}`;
+}
 
 function App() {
   const [activeCategory, setActiveCategory] = useState<string>("Todos");
@@ -64,6 +68,7 @@ function App() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
+  const [whatsappNumber, setWhatsappNumber] = useState("");
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -78,6 +83,21 @@ function App() {
 
   useEffect(() => {
     let isCurrent = true;
+
+    fetch("/api/config/whatsapp-contact")
+      .then(async (response) => {
+        if (response.status === 204) return "";
+        if (!response.ok) throw new Error(`Falha ao carregar contato: HTTP ${response.status}`);
+        const result = await response.json() as { success: boolean; message: string; data: { phoneNumber: string } | null };
+        if (!result.success) throw new Error(result.message);
+        return result.data?.phoneNumber ?? "";
+      })
+      .then((phoneNumber) => {
+        if (isCurrent) setWhatsappNumber(phoneNumber.replace(/\D/g, ""));
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) console.error("Não foi possível carregar o contato do WhatsApp da loja.", error);
+      });
 
     fetch("/api/products")
       .then(async (response) => {
@@ -254,7 +274,7 @@ function App() {
             <img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=90" alt="Pastéis dourados servidos fresquinhos" />
             <div className="hero-caption"><span>01</span><span>Pastel feito na hora</span><span className="caption-rule" /></div>
           </div>
-          <div className="hero-bottom"><span>BIANCA LANCHES</span><span>88 99601-1421</span></div>
+          <div className="hero-bottom"><span>BIANCA LANCHES</span>{whatsappNumber && <span>{formatWhatsAppNumber(whatsappNumber)}</span>}</div>
         </section>
 
         <section className="menu-section" id="cardapio">

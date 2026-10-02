@@ -26,7 +26,7 @@ Sistema de cardápio e pedidos para uma lanchonete. O cliente consulta o catálo
 
 ## Configuração de ambiente
 
-Copie `.env.example` para `.env` e substitua os placeholders por valores próprios. Não compartilhe nem versione `.env`.
+Copie `.env.example` para `.env` e substitua os placeholders por valores próprios. Configure `WHATSAPP_CONTATO` no `.env`; a API o fornece ao frontend em tempo de execução, sem incorporá-lo ao bundle estático. Não compartilhe nem versione `.env`.
 
 ## Docker Compose
 
