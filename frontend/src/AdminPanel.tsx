@@ -6,6 +6,7 @@ import { formatPrice } from "./menu";
 type ApiResponse<T> = { success: boolean; message: string; data: T | null };
 type AuthResponse = { token: string; name: string; email: string; role: string; expiresAt: string };
 type AdminUser = { id: string; name: string; email: string; role: string };
+type BlockedLogin = { email: string; blockedAt: string; failedAttempts: number; ipAddresses: string[] };
 type OrderItem = { id: number; productId: number; productName: string; quantity: number; unitPrice: number; subtotal: number };
 type Order = {
   id: number;
@@ -138,7 +139,8 @@ function AdminPanel() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [view, setView] = useState<"orders" | "products">("orders");
+  const [blockedLogins, setBlockedLogins] = useState<BlockedLogin[]>([]);
+  const [view, setView] = useState<"orders" | "products" | "security">("orders");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
@@ -182,13 +184,15 @@ function AdminPanel() {
       apiRequest<Order[]>("/orders", token),
       apiRequest<Product[]>("/products", token),
       apiRequest<Category[]>("/categories", token),
-    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories]) => {
+      apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
+    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories, loadedBlockedLogins]) => {
       if (currentAdmin.role !== "Admin") throw new Error("Esta conta não tem permissão de administrador.");
       if (!isCurrent) return;
       setAdmin(currentAdmin);
       setOrders(loadedOrders);
       setProducts(loadedProducts);
       setCategories(loadedCategories);
+      setBlockedLogins(loadedBlockedLogins);
       setError("");
     }).catch((requestError: unknown) => {
       if (!isCurrent) return;
@@ -245,10 +249,39 @@ function AdminPanel() {
       setOrders(loadedOrders);
       setProducts(loadedProducts);
       setCategories(loadedCategories);
+      if (view === "security")
+        setBlockedLogins(await apiRequest<BlockedLogin[]>("/auth/blocked-logins", token));
     } catch (requestError) {
       setError(errorText(requestError));
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function showBlockedLogins() {
+    setView("security");
+    if (!token) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      setBlockedLogins(await apiRequest<BlockedLogin[]>("/auth/blocked-logins", token));
+    } catch (requestError) {
+      setError(errorText(requestError));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  async function unblockLogin(blockedLogin: BlockedLogin) {
+    if (!token || !window.confirm(`Liberar o acesso para ${blockedLogin.email}?`)) return;
+    setError("");
+    setFeedback("");
+    try {
+      await apiRequest<unknown>(`/auth/blocked-logins?email=${encodeURIComponent(blockedLogin.email)}`, token, { method: "DELETE" });
+      setBlockedLogins((current) => current.filter((entry) => entry.email !== blockedLogin.email));
+      setFeedback(`Acesso liberado para ${blockedLogin.email}.`);
+    } catch (requestError) {
+      setError(errorText(requestError));
     }
   }
 
@@ -404,13 +437,14 @@ function AdminPanel() {
 
       <section className="admin-content">
         <div className="admin-title-row">
-          <div><p className="admin-eyebrow">Operação da loja</p><h1>{view === "orders" ? "Pedidos" : "Produtos"}</h1><p className="admin-subtitle">{view === "orders" ? `${visibleOrders.length} de ${orders.length} pedidos` : `${products.length} produtos cadastrados`}</p></div>
+          <div><p className="admin-eyebrow">Operação da loja</p><h1>{view === "orders" ? "Pedidos" : view === "products" ? "Produtos" : "Segurança"}</h1><p className="admin-subtitle">{view === "orders" ? `${visibleOrders.length} de ${orders.length} pedidos` : view === "products" ? `${products.length} produtos cadastrados` : `${blockedLogins.length} acessos bloqueados`}</p></div>
           <button className="admin-secondary-button" onClick={refreshData} disabled={refreshing} aria-label="Atualizar dados"><RefreshCw size={16} className={refreshing ? "admin-spinning" : ""} /><span>Atualizar</span></button>
         </div>
 
         <nav className="admin-tabs" aria-label="Seções administrativas">
           <button className={view === "orders" ? "active" : ""} onClick={() => setView("orders")}><ClipboardList size={17} />Pedidos<span>{orders.length}</span></button>
           <button className={view === "products" ? "active" : ""} onClick={() => setView("products")}><Boxes size={17} />Produtos<span>{products.length}</span></button>
+          <button className={view === "security" ? "active" : ""} onClick={showBlockedLogins}><ShieldCheck size={17} />Segurança<span>{blockedLogins.length}</span></button>
         </nav>
 
         {error && <p className="admin-error admin-notice" role="alert">{error}</p>}
@@ -441,7 +475,7 @@ function AdminPanel() {
               </article>)}
             </div> : <div className="admin-empty"><ClipboardList size={26} /><strong>Nenhum pedido encontrado</strong><span>Altere o período ou os filtros para consultar outros pedidos.</span></div>}
           </section>
-        ) : (
+        ) : view === "products" ? (
           <section className="admin-product-layout" aria-label="Gestão de produtos">
             <div className="admin-product-list">
               <div className="admin-list-heading"><div><h2>Catálogo</h2><span>{products.length} produtos</span></div><button className="admin-primary-button admin-add-button" onClick={startNewProduct}><Plus size={16} />Novo produto</button></div>
@@ -474,6 +508,22 @@ function AdminPanel() {
               <label className="admin-checkbox"><input type="checkbox" checked={productForm.isAvailable} onChange={(event) => setProductForm((current) => ({ ...current, isAvailable: event.target.checked }))} />Produto disponível para venda</label>
               <div className="admin-form-actions"><button type="submit" className="admin-primary-button" disabled={savingProduct}><span>{savingProduct ? "Salvando..." : editingProductId === null ? "Cadastrar produto" : "Salvar alterações"}</span><ArrowRight size={16} /></button>{editingProductId !== null && <button type="button" className="admin-secondary-button" onClick={startNewProduct}>Cancelar</button>}</div>
             </form>
+          </section>
+        ) : (
+          <section className="admin-workspace" aria-label="Acessos administrativos bloqueados">
+            <div className="admin-list-heading">
+              <div><h2>Acessos bloqueados</h2><span>Bloqueio permanente após 5 falhas em 15 minutos</span></div>
+            </div>
+            {blockedLogins.length ? <div className="admin-order-list">
+              {blockedLogins.map((blockedLogin) => <article className="admin-order-row" key={blockedLogin.email}>
+                <div className="admin-order-main">
+                  <div className="admin-order-heading"><strong>{blockedLogin.email}</strong><time>{new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(blockedLogin.blockedAt))}</time></div>
+                  <p>{blockedLogin.failedAttempts} tentativas inválidas</p>
+                  <p>IP(s): {blockedLogin.ipAddresses.length ? blockedLogin.ipAddresses.join(", ") : "Não identificado"}</p>
+                </div>
+                <button className="admin-secondary-button" onClick={() => unblockLogin(blockedLogin)}>Liberar acesso</button>
+              </article>)}
+            </div> : <div className="admin-empty"><ShieldCheck size={25} /><strong>Nenhum acesso bloqueado</strong><span>Os bloqueios permanentes aparecerão aqui.</span></div>}
           </section>
         )}
 

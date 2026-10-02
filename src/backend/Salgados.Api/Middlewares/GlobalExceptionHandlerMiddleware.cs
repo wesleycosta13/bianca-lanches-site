@@ -2,6 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Salgados.Api.Common;
+using Salgados.Api.Services;
 
 namespace Salgados.Api.Middlewares;
 
@@ -36,6 +37,7 @@ public class GlobalExceptionHandlerMiddleware
         var statusCode = exception switch
         {
             KeyNotFoundException => HttpStatusCode.NotFound,
+            LoginLockedException => HttpStatusCode.Locked,
             DbUpdateConcurrencyException => HttpStatusCode.Conflict,
             ArgumentException or InvalidOperationException => HttpStatusCode.BadRequest,
             UnauthorizedAccessException => HttpStatusCode.Unauthorized,

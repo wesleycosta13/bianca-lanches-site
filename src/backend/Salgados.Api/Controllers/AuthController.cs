@@ -40,10 +40,31 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("authentication")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status423Locked)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var response = await _authService.LoginAsync(request);
+        var ipAddress = HttpContext.Connection.RemoteIpAddress?.MapToIPv4().ToString();
+        var response = await _authService.LoginAsync(request, ipAddress);
         return Ok(ApiResponse<AuthResponse>.Ok(response, "Login realizado com sucesso."));
+    }
+
+    [HttpGet("blocked-logins")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<List<BlockedLoginResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetBlockedLogins()
+    {
+        var blockedLogins = await _authService.GetBlockedLoginsAsync();
+        return Ok(ApiResponse<List<BlockedLoginResponse>>.Ok(blockedLogins));
+    }
+
+    [HttpDelete("blocked-logins")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UnblockLogin([FromQuery] string email)
+    {
+        await _authService.UnblockLoginAsync(email);
+        return Ok(ApiResponse.Ok("Acesso liberado com sucesso."));
     }
 
     /// <summary>

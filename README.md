@@ -18,6 +18,7 @@ Sistema de cardápio e pedidos para uma lanchonete. O cliente consulta o catálo
 - Gestão de produtos, imagens por URL, variantes/preços e disponibilidade.
 - Pagamento criado como pendente e marcado como pago quando o pedido é entregue.
 - Reserva de estoque no cadastro do pedido, validação por variante e controle de concorrência.
+- Bloqueio permanente do e-mail após 5 falhas de login em 15 minutos; um administrador pode consultar IPs e liberar o acesso na seção Segurança do painel. Senhas tentadas não são armazenadas.
 
 ## Requisitos
 

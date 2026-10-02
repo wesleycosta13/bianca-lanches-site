@@ -17,6 +17,8 @@ public class AppDbContext : DbContext
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
+    public DbSet<BlockedLogin> BlockedLogins => Set<BlockedLogin>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +33,21 @@ public class AppDbContext : DbContext
             entity.HasIndex(u => u.Email).IsUnique();
             entity.Property(u => u.PasswordHash).IsRequired();
             entity.Property(u => u.Role).HasConversion<string>().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<LoginAttempt>(entity =>
+        {
+            entity.HasKey(attempt => attempt.Id);
+            entity.Property(attempt => attempt.Email).IsRequired().HasMaxLength(150);
+            entity.Property(attempt => attempt.IpAddress).HasMaxLength(45);
+            entity.HasIndex(attempt => new { attempt.Email, attempt.AttemptedAt });
+        });
+
+        modelBuilder.Entity<BlockedLogin>(entity =>
+        {
+            entity.HasKey(blockedLogin => blockedLogin.Id);
+            entity.Property(blockedLogin => blockedLogin.Email).IsRequired().HasMaxLength(150);
+            entity.HasIndex(blockedLogin => blockedLogin.Email).IsUnique();
         });
 
         // Category

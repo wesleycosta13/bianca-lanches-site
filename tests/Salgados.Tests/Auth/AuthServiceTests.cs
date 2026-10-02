@@ -91,7 +91,95 @@ public class AuthServiceTests
 
         (await wrongPassword.Should().ThrowAsync<UnauthorizedAccessException>()).WithMessage("E-mail ou senha inválidos.");
         (await unknownEmail.Should().ThrowAsync<UnauthorizedAccessException>()).WithMessage("E-mail ou senha inválidos.");
+        (await context.LoginAttempts.CountAsync()).Should().Be(2);
         tokenService.Verify(tokens => tokens.GenerateToken(It.IsAny<User>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldPermanentlyBlockEmailAfterFiveFailedAttemptsAndKeepAttemptMetadata()
+    {
+        await using var context = CreateContext();
+        context.Users.Add(new User
+        {
+            Name = "Admin",
+            Email = "admin@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct-password"),
+            Role = UserRole.Admin
+        });
+        await context.SaveChangesAsync();
+
+        var service = new AuthService(context, CreateTokenService().Object);
+        var invalidRequest = new LoginRequest { Email = " ADMIN@example.com ", Password = "wrong-password" };
+
+        for (var attempt = 0; attempt < LoginLockedException.AttemptLimit - 1; attempt++)
+        {
+            var failure = () => service.LoginAsync(invalidRequest, "192.0.2.10");
+            await failure.Should().ThrowAsync<UnauthorizedAccessException>()
+                .WithMessage("E-mail ou senha inválidos.");
+        }
+
+        var lockout = () => service.LoginAsync(invalidRequest, "192.0.2.10");
+        await lockout.Should().ThrowAsync<LoginLockedException>();
+
+        var attempts = await context.LoginAttempts.OrderBy(attempt => attempt.Id).ToListAsync();
+        attempts.Should().HaveCount(LoginLockedException.AttemptLimit);
+        attempts.Should().OnlyContain(attempt =>
+            attempt.Email == "admin@example.com"
+            && attempt.IpAddress == "192.0.2.10"
+            && attempt.AttemptedAt != default);
+        (await context.BlockedLogins.SingleAsync()).FailedAttempts.Should().Be(LoginLockedException.AttemptLimit);
+
+        var validPassword = () => service.LoginAsync(
+            new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
+            "198.51.100.20");
+        await validPassword.Should().ThrowAsync<LoginLockedException>();
+        (await context.LoginAttempts.CountAsync()).Should().Be(LoginLockedException.AttemptLimit + 1);
+
+        var blockedLogins = await service.GetBlockedLoginsAsync();
+        blockedLogins.Should().ContainSingle();
+        blockedLogins[0].Email.Should().Be("admin@example.com");
+        blockedLogins[0].FailedAttempts.Should().Be(LoginLockedException.AttemptLimit);
+        blockedLogins[0].IpAddresses.Should().BeEquivalentTo("192.0.2.10", "198.51.100.20");
+
+        await service.UnblockLoginAsync(" ADMIN@example.com ");
+        (await context.BlockedLogins.CountAsync()).Should().Be(0);
+        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(LoginLockedException.AttemptLimit + 1);
+        var response = await service.LoginAsync(
+            new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
+            "192.0.2.10");
+        response.Role.Should().Be(nameof(UserRole.Admin));
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldClearRecentFailuresAfterSuccessfulLogin()
+    {
+        await using var context = CreateContext();
+        context.Users.Add(new User
+        {
+            Name = "Admin",
+            Email = "admin@example.com",
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct-password"),
+            Role = UserRole.Admin
+        });
+        await context.SaveChangesAsync();
+
+        var service = new AuthService(context, CreateTokenService().Object);
+        for (var attempt = 0; attempt < LoginLockedException.AttemptLimit - 1; attempt++)
+        {
+            var failure = () => service.LoginAsync(
+                new LoginRequest { Email = "admin@example.com", Password = "wrong-password" },
+                "192.0.2.10");
+            await failure.Should().ThrowAsync<UnauthorizedAccessException>()
+                .WithMessage("E-mail ou senha inválidos.");
+        }
+
+        var response = await service.LoginAsync(
+            new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
+            "192.0.2.10");
+
+        response.Role.Should().Be(nameof(UserRole.Admin));
+        (await context.BlockedLogins.CountAsync()).Should().Be(0);
+        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(LoginLockedException.AttemptLimit - 1);
     }
 
     private static AppDbContext CreateContext()
