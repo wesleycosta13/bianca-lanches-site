@@ -77,13 +77,20 @@ docker compose down
 
 ## Testes e verificações
 
+### Testes Automatizados (E2E) e Manuais
+- **Testes Automatizados (Playwright + TypeScript):** Consulte [`e2e/README.md`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/e2e/README.md) para detalhes da suíte automatizada.
+- **Roteiro de Testes Manuais:** Consulte [`docs/TESTES_MANUAIS.md`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/docs/TESTES_MANUAIS.md) para casos de teste, passos de execução e matriz de cobertura funcional.
+
 ```powershell
+# Testes unitários / backend
 dotnet test .\Salgados.sln
+
+# Testes E2E automatizados
+cd e2e
+npm test
+
+# Build do frontend
 npm --prefix .\frontend run build
-dotnet list .\Salgados.sln package --vulnerable --include-transitive
-Push-Location .\frontend
-npm audit
-Pop-Location
 ```
 
 Execute as verificações antes de publicar alterações. Revise dependências e configurações do ambiente de implantação.
