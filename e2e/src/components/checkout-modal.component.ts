@@ -8,7 +8,7 @@ export class CheckoutModalComponent extends BaseComponent {
   readonly nameInput = this.root.getByLabel("Seu nome");
   readonly phoneInput = this.root.getByLabel("Telefone");
   readonly cityInput = this.root.getByLabel("Cidade");
-  readonly confirmButton = this.root.getByRole("button", { name: /confirmar pedido/i });
+  readonly confirmButton = this.root.getByRole("button", { name: /confirmar pedido|enviando pedido/i });
   readonly errorAlert = this.root.locator("[role='alert']");
   readonly successMessage = this.root.locator(".order-confirm-success");
   readonly backToCatalogButton = this.root.getByRole("button", { name: /voltar ao cardápio/i });

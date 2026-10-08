@@ -1,4 +1,5 @@
 import { test, expect } from "@fixtures";
+import { ENV } from "@constants/env";
 
 /**
  * @security
@@ -25,11 +26,42 @@ test.describe("Segurança — Controle de Acesso @security", () => {
     await adminLoginPage.expectErrorMessageVisible();
   });
 
-  test("deve garantir sanitização e bloqueio de SQL injection simples no login", async ({ adminLoginPage, page }) => {
+  test("deve impedir que e-mail de payload SQL inválido seja enviado pelo formulário", async ({ adminLoginPage, page }) => {
+    let loginRequests = 0;
+    page.on("request", (request) => {
+      if (request.url().endsWith("/api/auth/login") && request.method() === "POST") loginRequests += 1;
+    });
     await adminLoginPage.navigate();
-    await adminLoginPage.login("admin'--", "qualquerSenha");
+    await adminLoginPage.emailInput.fill("admin'--");
+    await adminLoginPage.passwordInput.fill("qualquerSenha");
+    await adminLoginPage.submitButton.click();
+
+    const emailIsValid = await adminLoginPage.emailInput.evaluate((input: HTMLInputElement) => input.validity.valid);
+    expect(emailIsValid).toBe(false);
+    expect(loginRequests).toBe(0);
+    await expect(page.locator(".admin-shell")).not.toBeVisible();
+  });
+
+  test("deve rejeitar chamadas sem token para a API de pedidos", async ({ page }) => {
+    const response = await page.request.get(new URL("/api/orders", ENV.BASE_URL).toString());
+
+    expect(response.status()).toBe(401);
+    const responseBody = await response.text();
+    expect(responseBody).not.toContain("customerName");
+    expect(responseBody).not.toContain("orderNumber");
+  });
+
+  test("deve tratar payload XSS no login como texto sem executar script", async ({ adminLoginPage, page }) => {
+    let dialogOpened = false;
+    page.on("dialog", async (dialog) => {
+      dialogOpened = true;
+      await dialog.dismiss();
+    });
+    await adminLoginPage.navigate();
+    await adminLoginPage.login("xss@example.com", "<script>window.__xssExecuted=true</script>");
 
     await adminLoginPage.expectErrorMessageVisible();
-    await expect(page.locator(".admin-shell")).not.toBeVisible();
+    await expect.poll(() => page.evaluate(() => Boolean((window as Window & { __xssExecuted?: boolean }).__xssExecuted))).toBe(false);
+    expect(dialogOpened).toBe(false);
   });
 });

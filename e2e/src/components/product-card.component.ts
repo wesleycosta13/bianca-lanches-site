@@ -21,13 +21,10 @@ export class ProductCardComponent extends BaseComponent {
   }
 
   async selectVariantByText(text: string): Promise<void> {
-    const option = this.variantSelect.locator("option").filter({ hasText: text }).first();
-    const value = await option.getAttribute("value");
-    if (value) {
-      await this.variantSelect.selectOption(value);
-    } else {
-      await this.variantSelect.selectOption({ label: text });
-    }
+    const optionLabel = (await this.variantSelect.locator("option").allTextContents())
+      .find((label) => label.trim().split("·")[0].trim() === text.trim());
+    if (!optionLabel) throw new Error(`Não existe a variante "${text}" neste produto.`);
+    await this.variantSelect.selectOption({ label: optionLabel.trim() });
   }
 
   async getVariantOptionsCount(): Promise<number> {

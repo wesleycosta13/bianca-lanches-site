@@ -13,6 +13,8 @@ test.describe("Vitrine — Carrinho de Compras @storefront", () => {
     const { cartPanel } = catalogPage;
     await expect(cartPanel.emptyMessage).toBeVisible();
     await expect(cartPanel.root).toContainText("Sua sacola está vazia");
+    await expect(cartPanel.totalPrice).toHaveText("R$ 0,00");
+    await expect(cartPanel.checkoutDetails).not.toBeVisible();
   });
 
   test("deve adicionar produto ao carrinho", async ({ catalogPage }) => {
@@ -21,6 +23,8 @@ test.describe("Vitrine — Carrinho de Compras @storefront", () => {
 
     await expect(cartPanel.cartLines).toHaveCount(1);
     await expect(cartPanel.root).toContainText("Carne");
+    await expect(cartPanel.getItemQuantityLocator("Carne")).toHaveText("1");
+    await expect(cartPanel.totalPrice).not.toHaveText("R$ 0,00");
   });
 
   test("deve incrementar quantidade ao adicionar mesmo produto novamente", async ({ catalogPage }) => {
@@ -43,6 +47,7 @@ test.describe("Vitrine — Carrinho de Compras @storefront", () => {
     await cartPanel.decreaseItem("carne");
 
     await expect(cartPanel.getItemQuantityLocator("Carne")).toContainText("1");
+    await expect(cartPanel.totalPrice).toHaveText("R$ 3,00");
   });
 
   test("deve remover item do carrinho quando quantidade chegar a zero", async ({ catalogPage }) => {
@@ -57,12 +62,12 @@ test.describe("Vitrine — Carrinho de Compras @storefront", () => {
   test("deve calcular o total correto com múltiplos itens", async ({ catalogPage }) => {
     const { cartPanel } = catalogPage;
 
+    await catalogPage.getProductCard("Carne").selectVariantByText("G");
     await catalogPage.getProductCard("Carne").addToCart();
     await catalogPage.getProductCard("Coxinha").addToCart();
 
-    await expect(cartPanel.totalPrice).toBeVisible();
-    const totalText = await cartPanel.totalPrice.textContent();
-    expect(totalText).not.toBe("R$ 0,00");
+    await expect(cartPanel.cartLines).toHaveCount(2);
+    await expect(cartPanel.totalPrice).toHaveText("R$ 18,50");
   });
 
   test("deve selecionar variante diferente antes de adicionar", async ({ catalogPage }) => {

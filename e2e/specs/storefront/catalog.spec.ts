@@ -17,6 +17,12 @@ test.describe("Vitrine — Catálogo e Navegação @storefront", () => {
   test("deve exibir a seção hero com CTA para cardápio", async ({ catalogPage }) => {
     await expect(catalogPage.heroHeading).toContainText("sabor");
     await expect(catalogPage.heroCta).toBeVisible();
+    await expect(catalogPage.heroCta).toBeEnabled();
+    await expect(catalogPage.header.brand).toBeVisible();
+    const heroImage = catalogPage.page.locator(".hero-visual img");
+    await expect(heroImage).toBeVisible();
+    await expect(heroImage).toHaveJSProperty("complete", true);
+    await expect.poll(() => heroImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
   });
 
   test("deve navegar até o cardápio ao clicar no CTA", async ({ catalogPage }) => {
@@ -35,6 +41,11 @@ test.describe("Vitrine — Catálogo e Navegação @storefront", () => {
     await catalogPage.navigateToCatalog();
     await catalogPage.selectCategory("Bebidas");
     await expect(catalogPage.getCategorySection("Bebidas")).toBeInViewport();
+    await expect(catalogPage.getCategorySection("Bebidas").locator(".product-card").first()).toBeVisible();
+    await expect(catalogPage.page.locator(".category-section")).toHaveCount(1);
+
+    await catalogPage.selectCategory("Todos");
+    await expect(catalogPage.page.locator(".category-section").nth(1)).toBeVisible();
   });
 
   test("deve buscar produtos no cardápio", async ({ catalogPage }) => {
@@ -72,5 +83,7 @@ test.describe("Vitrine — Catálogo e Navegação @storefront", () => {
     await expect(pastelCard.variantSelect).toBeVisible();
     const count = await pastelCard.getVariantOptionsCount();
     expect(count).toBeGreaterThanOrEqual(3);
+    await pastelCard.selectVariantByText("G");
+    await expect(pastelCard.variantSelect.locator("option:checked")).toContainText("G · R$ 6,00");
   });
 });

@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import path from "path";
 
 // Carrega variáveis de ambiente do arquivo .env
-dotenv.config({ path: path.resolve(__dirname, ".env") });
+dotenv.config({ path: path.resolve(import.meta.dirname, ".env") });
 
 /**
  * Configuração do Playwright para testes E2E da Bianca Lanches.
@@ -48,12 +48,12 @@ export default defineConfig({
     {
       name: "storefront-chromium",
       use: { ...devices["Desktop Chrome"] },
-      testMatch: /storefront\/.+\.spec\.ts/,
+      testMatch: /storefront\/(?!mobile\.spec\.ts$).+\.spec\.ts$/,
     },
     {
       name: "storefront-mobile",
       use: { ...devices["iPhone 14"] },
-      testMatch: /storefront\/.+\.spec\.ts/,
+      testMatch: /storefront\/mobile\.spec\.ts$/,
     },
 
     // Testes do painel admin (autenticado)

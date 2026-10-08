@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Boxes, Check, ClipboardList, ImagePlus, LogOut, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Boxes, Check, ClipboardList, ImagePlus, LogOut, MessageCircle, Pencil, Plus, RefreshCw, Search, Settings, ShieldCheck, Trash2 } from "lucide-react";
 import logoImage from "./img/LogoBianca.jpg";
 import { formatPrice } from "./menu";
 
@@ -42,6 +42,7 @@ type Product = {
 };
 type ProductVariant = { id: number; label: string; price: number; isAvailable: boolean };
 type Category = { id: number; name: string; isActive: boolean };
+type HeroImageConfig = { imageUrl: string };
 type ProductVariantForm = { label: string; price: string; isAvailable: boolean };
 type ProductForm = {
   name: string;
@@ -144,7 +145,7 @@ function AdminPanel() {
   const [loginAttempts, setLoginAttempts] = useState<LoginAttempt[]>([]);
   const [editingAttemptId, setEditingAttemptId] = useState<number | null>(null);
   const [editingCountValue, setEditingCountValue] = useState<number>(0);
-  const [view, setView] = useState<"orders" | "products" | "security">("orders");
+  const [view, setView] = useState<"orders" | "products" | "security" | "settings">("orders");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
@@ -161,6 +162,8 @@ function AdminPanel() {
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm);
   const [savingProduct, setSavingProduct] = useState(false);
   const [updatingOrderId, setUpdatingOrderId] = useState<number | null>(null);
+  const [heroImageUrl, setHeroImageUrl] = useState("");
+  const [savingHeroImage, setSavingHeroImage] = useState(false);
 
   useEffect(() => {
     const now = new Date();
@@ -190,7 +193,8 @@ function AdminPanel() {
       apiRequest<Category[]>("/categories", token),
       apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
       apiRequest<LoginAttempt[]>("/auth/login-attempts", token),
-    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories, loadedBlockedLogins, loadedAttempts]) => {
+      apiRequest<HeroImageConfig>("/config/hero-image", token),
+    ]).then(([currentAdmin, loadedOrders, loadedProducts, loadedCategories, loadedBlockedLogins, loadedAttempts, loadedHeroImage]) => {
       if (currentAdmin.role !== "Admin") throw new Error("Esta conta não tem permissão de administrador.");
       if (!isCurrent) return;
       setAdmin(currentAdmin);
@@ -199,6 +203,7 @@ function AdminPanel() {
       setCategories(loadedCategories);
       setBlockedLogins(loadedBlockedLogins);
       setLoginAttempts(loadedAttempts);
+      setHeroImageUrl(loadedHeroImage.imageUrl);
       setError("");
     }).catch((requestError: unknown) => {
       if (!isCurrent) return;
@@ -255,6 +260,8 @@ function AdminPanel() {
       setOrders(loadedOrders);
       setProducts(loadedProducts);
       setCategories(loadedCategories);
+      const loadedHeroImage = await apiRequest<HeroImageConfig>("/config/hero-image", token);
+      setHeroImageUrl(loadedHeroImage.imageUrl);
       if (view === "security") {
         const [loadedBlocked, loadedAttempts] = await Promise.all([
           apiRequest<BlockedLogin[]>("/auth/blocked-logins", token),
@@ -416,6 +423,26 @@ function AdminPanel() {
     }
   }
 
+  async function saveHeroImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!token) return;
+    setSavingHeroImage(true);
+    setError("");
+    setFeedback("");
+    try {
+      const saved = await apiRequest<HeroImageConfig>("/config/hero-image", token, {
+        method: "PUT",
+        body: JSON.stringify({ imageUrl: heroImageUrl.trim() }),
+      });
+      setHeroImageUrl(saved.imageUrl);
+      setFeedback("Imagem principal atualizada com sucesso.");
+    } catch (requestError) {
+      setError(errorText(requestError));
+    } finally {
+      setSavingHeroImage(false);
+    }
+  }
+
   async function deleteProduct(product: Product) {
     if (!token || !window.confirm(`Excluir o produto ${product.name}?`)) return;
     setError("");
@@ -471,7 +498,7 @@ function AdminPanel() {
 
       <section className="admin-content">
         <div className="admin-title-row">
-          <div><p className="admin-eyebrow">Operação da loja</p><h1>{view === "orders" ? "Pedidos" : view === "products" ? "Produtos" : "Segurança"}</h1><p className="admin-subtitle">{view === "orders" ? `${visibleOrders.length} de ${orders.length} pedidos` : view === "products" ? `${products.length} produtos cadastrados` : `${blockedLogins.length} acessos bloqueados`}</p></div>
+          <div><p className="admin-eyebrow">Operação da loja</p><h1>{view === "orders" ? "Pedidos" : view === "products" ? "Produtos" : view === "settings" ? "Configurações" : "Segurança"}</h1><p className="admin-subtitle">{view === "orders" ? `${visibleOrders.length} de ${orders.length} pedidos` : view === "products" ? `${products.length} produtos cadastrados` : view === "settings" ? "Personalize a página inicial" : `${blockedLogins.length} acessos bloqueados`}</p></div>
           <button className="admin-secondary-button" onClick={refreshData} disabled={refreshing} aria-label="Atualizar dados"><RefreshCw size={16} className={refreshing ? "admin-spinning" : ""} /><span>Atualizar</span></button>
         </div>
 
@@ -479,6 +506,7 @@ function AdminPanel() {
           <button className={view === "orders" ? "active" : ""} onClick={() => setView("orders")}><ClipboardList size={17} />Pedidos<span>{orders.length}</span></button>
           <button className={view === "products" ? "active" : ""} onClick={() => setView("products")}><Boxes size={17} />Produtos<span>{products.length}</span></button>
           <button className={view === "security" ? "active" : ""} onClick={showBlockedLogins}><ShieldCheck size={17} />Segurança<span>{blockedLogins.length}</span></button>
+          <button className={view === "settings" ? "active" : ""} onClick={() => { setView("settings"); setError(""); setFeedback(""); }}><Settings size={17} />Configurações</button>
         </nav>
 
         {error && <p className="admin-error admin-notice" role="alert">{error}</p>}
@@ -541,6 +569,16 @@ function AdminPanel() {
               {productForm.imageUrl && <div className="admin-image-preview"><img src={productForm.imageUrl} alt="Prévia da imagem do produto" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} /></div>}
               <label className="admin-checkbox"><input type="checkbox" checked={productForm.isAvailable} onChange={(event) => setProductForm((current) => ({ ...current, isAvailable: event.target.checked }))} />Produto disponível para venda</label>
               <div className="admin-form-actions"><button type="submit" className="admin-primary-button" disabled={savingProduct}><span>{savingProduct ? "Salvando..." : editingProductId === null ? "Cadastrar produto" : "Salvar alterações"}</span><ArrowRight size={16} /></button>{editingProductId !== null && <button type="button" className="admin-secondary-button" onClick={startNewProduct}>Cancelar</button>}</div>
+            </form>
+          </section>
+        ) : view === "settings" ? (
+          <section className="admin-settings-workspace" aria-label="Configurações da loja">
+            <form className="admin-settings-form" onSubmit={saveHeroImage}>
+              <div className="admin-form-heading"><span className="admin-eyebrow">Página inicial</span><h2>Imagem principal</h2></div>
+              <p className="admin-settings-copy">Altere a foto grande exibida na primeira seção do site. Cole o endereço HTTPS direto da imagem.</p>
+              <label className="admin-field">URL da imagem<input type="url" value={heroImageUrl} onChange={(event) => setHeroImageUrl(event.target.value)} placeholder="https://exemplo.com/imagem.jpg" maxLength={2048} required /></label>
+              {heroImageUrl && <div className="admin-image-preview admin-hero-image-preview"><img src={heroImageUrl} alt="Prévia da imagem principal" onError={(event) => { event.currentTarget.style.visibility = "hidden"; }} /></div>}
+              <button type="submit" className="admin-primary-button" disabled={savingHeroImage}><span>{savingHeroImage ? "Salvando..." : "Salvar imagem"}</span><ArrowRight size={16} /></button>
             </form>
           </section>
         ) : (

@@ -447,6 +447,28 @@ namespace Salgados.Infrastructure.Migrations
                     b.ToTable("StockMovements");
                 });
 
+            modelBuilder.Entity("Salgados.Core.Entities.StoreSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("HeroImageUrl")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("StoreSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            HeroImageUrl = "https://i.pinimg.com/736x/7d/ac/8b/7dac8bdfec19eecf52b3e237165a753e.jpg"
+                        });
+                });
+
             modelBuilder.Entity("Salgados.Core.Entities.User", b =>
                 {
                     b.Property<int>("Id")

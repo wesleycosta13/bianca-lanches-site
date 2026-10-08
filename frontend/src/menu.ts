@@ -20,9 +20,9 @@ const pastelSizes = (small: number, large: number, extraLarge: number): MenuVari
   { id: "GG", label: "GG", price: extraLarge },
 ];
 
-const pastelImage = "https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=900&q=85";
-const snackImage = "https://images.unsplash.com/photo-1625944525533-473f1a3d54e9?auto=format&fit=crop&w=900&q=85";
-const drinkImage = "https://images.unsplash.com/photo-1581636625402-29b2a704ef13?auto=format&fit=crop&w=900&q=85";
+const pastelImage = "";
+const snackImage = "";
+const drinkImage = "";
 
 export const menuItems: MenuItem[] = [
   { id: "carne", name: "Carne", category: "Pasteis tradicionais", description: "Recheio bem temperado, feito na casa.", image: pastelImage, imageAlt: "Pastel dourado e crocante", variants: pastelSizes(3, 6, 14) },

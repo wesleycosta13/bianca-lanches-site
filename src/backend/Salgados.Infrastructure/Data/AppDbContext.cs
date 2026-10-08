@@ -19,6 +19,7 @@ public class AppDbContext : DbContext
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
     public DbSet<BlockedLogin> BlockedLogins => Set<BlockedLogin>();
+    public DbSet<StoreSetting> StoreSettings => Set<StoreSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -49,6 +50,18 @@ public class AppDbContext : DbContext
             entity.HasKey(blockedLogin => blockedLogin.Id);
             entity.Property(blockedLogin => blockedLogin.Email).IsRequired().HasMaxLength(150);
             entity.HasIndex(blockedLogin => blockedLogin.Email).IsUnique();
+        });
+
+        modelBuilder.Entity<StoreSetting>(entity =>
+        {
+            entity.HasKey(setting => setting.Id);
+            entity.Property(setting => setting.Id).ValueGeneratedNever();
+            entity.Property(setting => setting.HeroImageUrl).IsRequired().HasMaxLength(2048);
+            entity.HasData(new StoreSetting
+            {
+                Id = 1,
+                HeroImageUrl = "https://i.pinimg.com/736x/7d/ac/8b/7dac8bdfec19eecf52b3e237165a753e.jpg"
+            });
         });
 
         // Category

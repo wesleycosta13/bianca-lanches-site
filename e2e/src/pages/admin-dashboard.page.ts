@@ -13,6 +13,7 @@ export class AdminDashboardPage extends BasePage {
   readonly ordersTab = this.page.getByRole("button", { name: /pedidos/i });
   readonly productsTab = this.page.getByRole("button", { name: /produtos/i });
   readonly securityTab = this.page.getByRole("button", { name: /segurança/i });
+  readonly settingsTab = this.page.getByRole("button", { name: /configurações/i });
 
   // Aba Pedidos
   readonly orderSearchInput = this.page.getByPlaceholder("Buscar pedido, cliente ou telefone");
@@ -29,6 +30,7 @@ export class AdminDashboardPage extends BasePage {
 
   // Aba Segurança
   readonly blockedLoginsSection = this.page.locator("section[aria-label='Acessos administrativos bloqueados']");
+  readonly attemptsList = this.blockedLoginsSection.locator(".admin-order-list").last();
 
   constructor(page: Page) {
     super(page);

@@ -215,7 +215,7 @@ button { color: inherit; }
 .admin-title-row h1 { font-size: 39px; }
 .admin-subtitle { margin: 8px 0 0; color: var(--muted); font-size: 12px; }
 .admin-title-row > .admin-secondary-button { min-width: 105px; }
-.admin-tabs { display: flex; gap: 5px; margin: 28px 0 0; border-bottom: 1px solid var(--line); }
+.admin-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin: 28px 0 0; border-bottom: 1px solid var(--line); }
 .admin-tabs button { position: relative; min-height: 46px; display: inline-flex; align-items: center; gap: 9px; padding: 0 15px; border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
 .admin-tabs button.active { color: var(--red); }
 .admin-tabs button.active::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: var(--red); content: ""; }
@@ -289,6 +289,11 @@ button { color: inherit; }
 .admin-checkbox input { width: 16px; height: 16px; accent-color: var(--red); }
 .admin-image-preview { width: 100%; height: 145px; overflow: hidden; background: #f2e9dc; }
 .admin-image-preview img { width: 100%; height: 100%; object-fit: contain; }
+.admin-settings-workspace { max-width: 650px; margin-top: 20px; }
+.admin-settings-form { display: grid; gap: 14px; padding: 20px; border-top: 3px solid var(--red); background: #fffdfa; }
+.admin-settings-form .admin-form-heading h2 { margin: 0; font: 23px "Lilita One", sans-serif; }
+.admin-settings-copy { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.admin-hero-image-preview { height: 260px; }
 .admin-form-actions { display: flex; flex-wrap: wrap; gap: 9px; }
 .admin-form-actions .admin-primary-button { flex: 1; justify-content: space-between; }
 .admin-footer { display: flex; align-items: center; gap: 7px; margin-top: 30px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }

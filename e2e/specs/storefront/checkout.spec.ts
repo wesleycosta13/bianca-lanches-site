@@ -64,17 +64,23 @@ test.describe("Vitrine — Fluxo de Pedido @storefront", () => {
     await expect(checkoutModal.confirmationLines).toContainText("Carne");
     await expect(checkoutModal.confirmationAddress).toContainText(defaultAddress.street);
     await expect(checkoutModal.confirmationAddress).toContainText(defaultAddress.neighborhood);
+    await expect(checkoutModal.confirmationAddress).toContainText(defaultAddress.number ?? "S/N");
     await expect(checkoutModal.confirmationAddress).toContainText("Pix");
   });
 
   test("deve exibir erro ao tentar confirmar sem nome, telefone e cidade", async ({ catalogPage }) => {
     const { cartPanel, checkoutModal } = catalogPage;
+    let orderRequests = 0;
+    catalogPage.page.on("request", (request) => {
+      if (request.url().endsWith("/api/orders") && request.method() === "POST") orderRequests += 1;
+    });
     await prepareCartWithDelivery(catalogPage);
 
     await cartPanel.proceedToCheckout();
     await checkoutModal.confirmOrder();
 
     await expect(checkoutModal.errorAlert).toContainText("Preencha seu nome");
+    expect(orderRequests).toBe(0);
   });
 
   test("deve enviar pedido com sucesso e exibir confirmação", async ({ catalogPage }) => {
@@ -83,10 +89,18 @@ test.describe("Vitrine — Fluxo de Pedido @storefront", () => {
 
     await cartPanel.proceedToCheckout();
     await checkoutModal.fillCustomerInfo(defaultCustomer);
+    await catalogPage.page.route("**/api/orders", async (route) => {
+      if (route.request().method() === "POST") {
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      }
+      await route.continue();
+    });
     await checkoutModal.confirmOrder();
 
+    await expect(checkoutModal.confirmButton).toContainText("Enviando pedido...");
     await expect(checkoutModal.successMessage).toBeVisible({ timeout: 15_000 });
     await expect(checkoutModal.root).toContainText("Recebemos seu pedido");
+    await expect(checkoutModal.root).toContainText(/PED-\d{8}-[A-F0-9]{6}/);
   });
 
   test("deve limpar carrinho após pedido confirmado com sucesso", async ({ catalogPage }) => {

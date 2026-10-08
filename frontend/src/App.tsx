@@ -3,10 +3,12 @@ import { ArrowDown, ArrowRight, Check, Clock3, MapPin, Minus, Plus, Search, Shop
 import logoImage from "./img/LogoBianca.jpg";
 import { categories, formatPrice, menuItems, type MenuItem } from "./menu";
 
+const defaultHeroImageUrl = "https://i.pinimg.com/736x/7d/ac/8b/7dac8bdfec19eecf52b3e237165a753e.jpg";
+
 type CartLine = { itemId: string; variantId: string; quantity: number };
 type PaymentMethod = "Pix" | "Dinheiro" | "Cartão" | "";
 type CatalogProductVariant = { id: number; label: string; price: number; isAvailable: boolean };
-type CatalogProduct = { id: number; name: string; description: string; price: number; imageUrl?: string | null; isAvailable: boolean; variants: CatalogProductVariant[] };
+type CatalogProduct = { id: number; name: string; description: string; price: number; imageUrl?: string | null; categoryName: string; isAvailable: boolean; variants: CatalogProductVariant[] };
 
 type CheckoutDetailsProps = {
   neighborhood: string;
@@ -62,6 +64,7 @@ function formatWhatsAppNumber(phoneNumber: string) {
 
 function App() {
   const [activeCategory, setActiveCategory] = useState<string>("Todos");
+  const [selectedCategory, setSelectedCategory] = useState<string>("Todos");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [selectedVariants, setSelectedVariants] = useState<Record<string, string>>({});
@@ -69,6 +72,7 @@ function App() {
   const [cartOpen, setCartOpen] = useState(false);
   const [catalogProducts, setCatalogProducts] = useState<CatalogProduct[]>([]);
   const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [heroImageUrl, setHeroImageUrl] = useState(defaultHeroImageUrl);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -99,6 +103,20 @@ function App() {
         if (isCurrent) console.error("Não foi possível carregar o contato do WhatsApp da loja.", error);
       });
 
+    fetch("/api/config/hero-image")
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Falha ao carregar imagem principal: HTTP ${response.status}`);
+        const result = await response.json() as { success: boolean; message: string; data: { imageUrl: string } | null };
+        if (!result.success || !result.data?.imageUrl) throw new Error(result.message || "Configuração da imagem principal inválida.");
+        return result.data.imageUrl;
+      })
+      .then((imageUrl) => {
+        if (isCurrent) setHeroImageUrl(imageUrl);
+      })
+      .catch((error: unknown) => {
+        if (isCurrent) console.error("Não foi possível carregar a imagem principal configurada.", error);
+      });
+
     fetch("/api/products")
       .then(async (response) => {
         if (!response.ok) return [];
@@ -114,7 +132,7 @@ function App() {
   }, []);
 
   const productsByName = new Map(catalogProducts.map((product) => [product.name.trim().toLocaleLowerCase("pt-BR"), product]));
-  const currentMenuItems = menuItems
+  const knownItems = menuItems
     .map((item) => {
       const product = productsByName.get(item.name.trim().toLocaleLowerCase("pt-BR"));
       return product ? {
@@ -126,12 +144,30 @@ function App() {
       } : { ...item, isAvailable: true };
     })
     .filter((item) => item.isAvailable);
+  const knownNames = new Set(menuItems.map((item) => item.name.trim().toLocaleLowerCase("pt-BR")));
+  const additionalItems: MenuItem[] = catalogProducts
+    .filter((product) => product.isAvailable && !knownNames.has(product.name.trim().toLocaleLowerCase("pt-BR")))
+    .map((product) => ({
+      id: `product-${product.id}`,
+      name: product.name,
+      category: product.categoryName.toLocaleLowerCase("pt-BR").includes("bebida") ? "Bebidas" : "Salgados variados",
+      description: product.description,
+      image: product.imageUrl ?? "",
+      imageAlt: product.name,
+      variants: product.variants.map((variant) => ({
+        id: String(variant.id),
+        label: variant.label,
+        price: variant.isAvailable ? variant.price : null,
+      })),
+    }));
+  const currentMenuItems = [...knownItems, ...additionalItems];
 
   const filteredItems = currentMenuItems.filter((item) =>
     `${item.name} ${item.description}`.toLocaleLowerCase("pt-BR").includes(deferredSearch.toLocaleLowerCase("pt-BR")),
   );
   const categorySections = categories
     .filter((category) => category !== "Todos")
+    .filter((category) => selectedCategory === "Todos" || selectedCategory === category)
     .map((category) => ({ category, items: filteredItems.filter((item) => item.category === category) }))
     .filter((section) => section.items.length > 0);
 
@@ -271,7 +307,7 @@ function App() {
           </div>
           <div className="hero-visual" aria-label="Pastéis dourados, feitos na hora">
             <div className="hero-stamp">CROCANTE<br />DE VERDADE</div>
-            <img src="https://images.unsplash.com/photo-1601050690597-df0568f70950?auto=format&fit=crop&w=1200&q=90" alt="Pastéis dourados servidos fresquinhos" />
+            <img src={heroImageUrl} alt="Pastéis dourados servidos fresquinhos" />
             <div className="hero-caption"><span>01</span><span>Pastel feito na hora</span><span className="caption-rule" /></div>
           </div>
           <div className="hero-bottom"><span>BIANCA LANCHES</span>{whatsappNumber && <span>{formatWhatsAppNumber(whatsappNumber)}</span>}</div>
@@ -291,6 +327,7 @@ function App() {
               {categories.map((category) => (
                 <button key={category} className={`category-tab ${activeCategory === category ? "active" : ""}`} onClick={() => {
                   const targetId = category === "Todos" ? "cardapio" : `categoria-${category}`;
+                  setSelectedCategory(category);
                   document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" });
                   setActiveCategory(category);
                 }} aria-current={activeCategory === category ? "location" : undefined}>
