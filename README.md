@@ -66,19 +66,22 @@ Sistema completo de autoatendimento, cardápio digital e gestão de pedidos para
 
 ## Configuração do Ambiente (.env)
 
-Copie o arquivo de exemplo na raiz do projeto e ajuste as variáveis necessárias:
+Crie um arquivo `.env` na raiz do projeto com as configurações do seu ambiente. Use valores próprios nos campos indicados abaixo:
 
-```bash
-cp .env.example .env
+```env
+POSTGRES_USER=SEU_USUARIO_DO_BANCO
+POSTGRES_PASSWORD=DEFINA_UMA_SENHA_FORTE
+POSTGRES_DB=salgados_db
+POSTGRES_HOST=localhost
+POSTGRES_HOST_PORT=5433
+Jwt__Secret=DEFINA_UM_SEGREDO_ALEATORIO_COM_PELO_MENOS_32_BYTES
+Admin__Email=SEU_EMAIL_DE_ADMIN
+Admin__Password=DEFINA_UMA_SENHA_FORTE_COM_PELO_MENOS_12_CARACTERES
+WHATSAPP_CONTATO=SEU_NUMERO_COM_CODIGO_DO_PAIS_E_DDD
+VITE_ADMIN_PATH=/admin
 ```
 
-Principais variáveis:
-- `POSTGRES_USER`: Usuário do banco de dados (ex: `postgres`).
-- `POSTGRES_PASSWORD`: Senha do banco de dados.
-- `POSTGRES_DB`: Nome do banco (ex: `salgados_db`).
-- `Admin__Email`: E-mail padrão do administrador (ex: `admin123456@gmail.com`).
-- `Admin__Password`: Senha do administrador (ex: `admin12345678`).
-- `WHATSAPP_CONTATO`: Número do WhatsApp da loja para contato direto.
+Substitua todos os valores de exemplo pelos seus próprios. Não versione nem compartilhe o `.env`; em CI/CD, cadastre os valores como secrets protegidos no provedor.
 
 ---
 
@@ -167,7 +170,6 @@ dotnet test Salgados.sln
 
 ---
 
-## Credenciais de Demonstração / Teste
+## Segurança das credenciais
 
-- **E-mail:** `admin123456@gmail.com`
-- **Senha:** `admin12345678`
+Configure o e-mail e a senha do administrador no `.env` 
