@@ -48,6 +48,7 @@ export default defineConfig({
     {
       name: "storefront-chromium",
       use: { ...devices["Desktop Chrome"] },
+      dependencies: ["admin-setup"],
       testMatch: /storefront\/(?!mobile\.spec\.ts$).+\.spec\.ts$/,
     },
     {

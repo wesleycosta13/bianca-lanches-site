@@ -1,6 +1,12 @@
 import { test, expect } from "@fixtures";
 import { CheckoutDataFactory } from "@data/checkout.factory";
 import type { CatalogPage } from "@pages/catalog.page";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { ENV } from "@constants/env";
+
+const ADMIN_TOKEN_FILE = path.resolve(import.meta.dirname, "../../auth/admin-token.txt");
+const API_BASE_URL = ENV.API_BASE_URL.replace(/\/+$/, "");
 
 /**
  * @storefront
@@ -22,6 +28,29 @@ test.describe("Vitrine — Fluxo de Pedido @storefront", () => {
     await catalogPage.getProductCard("Carne").addToCart();
     await catalogPage.cartPanel.fillDeliveryAddress(defaultAddress);
     await catalogPage.cartPanel.selectPaymentMethod("Pix");
+  }
+
+  async function addCarneInventory(page: CatalogPage["page"]) {
+    const token = await readFile(ADMIN_TOKEN_FILE, "utf8");
+    const productsResponse = await page.request.get(`${API_BASE_URL}/products`);
+    expect(productsResponse.ok(), "A API deve listar produtos para preparar o estoque do teste.").toBeTruthy();
+
+    const productsResult = await productsResponse.json() as {
+      data?: Array<{ id: number; name: string }>;
+    };
+    const carne = productsResult.data?.find((product) => product.name.trim().toLocaleLowerCase("pt-BR") === "carne");
+    if (!carne) throw new Error("O produto Carne não foi encontrado para preparar o checkout E2E.");
+
+    const stockResponse = await page.request.post(`${API_BASE_URL}/stock/movement`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        productId: carne.id,
+        type: 1,
+        quantity: 10,
+        reason: "Reposição de estoque para checkout E2E",
+      },
+    });
+    expect(stockResponse.status(), await stockResponse.text()).toBe(201);
   }
 
   test("deve exibir botão 'Fechar pedido' somente após preencher campos obrigatórios", async ({ catalogPage }) => {
@@ -85,6 +114,7 @@ test.describe("Vitrine — Fluxo de Pedido @storefront", () => {
 
   test("deve enviar pedido com sucesso e exibir confirmação", async ({ catalogPage }) => {
     const { cartPanel, checkoutModal } = catalogPage;
+    await addCarneInventory(catalogPage.page);
     await prepareCartWithDelivery(catalogPage);
 
     await cartPanel.proceedToCheckout();
@@ -105,6 +135,7 @@ test.describe("Vitrine — Fluxo de Pedido @storefront", () => {
 
   test("deve limpar carrinho após pedido confirmado com sucesso", async ({ catalogPage }) => {
     const { cartPanel, checkoutModal } = catalogPage;
+    await addCarneInventory(catalogPage.page);
     await prepareCartWithDelivery(catalogPage);
 
     await cartPanel.proceedToCheckout();
