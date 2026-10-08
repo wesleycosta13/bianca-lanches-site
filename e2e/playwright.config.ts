@@ -73,5 +73,11 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       testMatch: /security\/.+\.spec\.ts/,
     },
+
+    // Chamadas HTTP diretas à API, sem abrir navegador
+    {
+      name: "api",
+      testMatch: /api\/.+\.spec\.ts/,
+    },
   ],
 });

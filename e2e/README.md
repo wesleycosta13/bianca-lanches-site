@@ -2,7 +2,7 @@
 
 Arquitetura profissional de testes E2E com [Playwright](https://playwright.dev/) orientada aos princípios de **Clean Code** e **SOLID**.
 
-> 📖 **Testes Manuais:** O roteiro completo de casos de teste manuais, passos e critérios de aceite está documentado em [`docs/TESTES_MANUAIS.md`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/docs/TESTES_MANUAIS.md).
+> 📖 **Testes Manuais:** O roteiro completo de casos de teste manuais, passos e critérios de aceite está documentado em [`docs/TESTES_MANUAIS.md`](Repository/Pasta/docs/TESTES_MANUAIS.md).
 
 ---
 
@@ -56,6 +56,8 @@ e2e/
 │   ├── admin/
 │   │   ├── login.spec.ts           # Cenários de login administrativo (não autenticado)
 │   │   └── dashboard.spec.ts       # Gestão de pedidos, catálogo e abas (autenticado)
+│   ├── api/
+│   │   └── public-api.spec.ts      # Contratos HTTP, validação e autorização da API (sem navegador)
 │   ├── security/
 │   │   └── security.spec.ts        # Controle de acesso e proteção contra acessos indevidos
 │   └── storefront/
@@ -111,6 +113,9 @@ npm run test:storefront
 
 # Executar apenas testes administrativos
 npm run test:admin
+
+# Executar testes da API diretamente por HTTP, sem navegador
+npm run test:api
 
 # Visualizar o último relatório HTML
 npm run report

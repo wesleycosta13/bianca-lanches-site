@@ -11,6 +11,7 @@
     "test:storefront": "npx playwright test --grep @storefront",
     "test:admin": "npx playwright test --grep @admin",
     "test:security": "npx playwright test --grep @security",
+    "test:api": "npx playwright test --project=api",
     "report": "npx playwright show-report"
   },
   "devDependencies": {
