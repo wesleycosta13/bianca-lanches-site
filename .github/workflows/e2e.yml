@@ -82,8 +82,12 @@ jobs:
       - name: Collect Docker Compose diagnostics on failure
         if: failure()
         run: |
-          docker compose ps --all
-          docker compose logs --no-color --tail=200 api postgres frontend
+          if [ -f .env ]; then
+            docker compose ps --all
+            docker compose logs --no-color --tail=200 api postgres frontend
+          else
+            echo "Arquivo .env não foi criado; verifique os secrets exigidos na etapa de inicialização."
+          fi
 
       - name: Upload Playwright HTML Report
         if: always()
