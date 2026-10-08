@@ -25,7 +25,21 @@ jobs:
           cache-dependency-path: 'e2e/package-lock.json'
 
       - name: Start Application Services (Docker Compose)
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
+          printf '%s\n' \
+            "POSTGRES_USER=$POSTGRES_USER" \
+            "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+            "POSTGRES_DB=$POSTGRES_DB" \
+            "Jwt__Secret=$JWT_SECRET" \
+            "Admin__Email=$ADMIN_EMAIL" \
+            "Admin__Password=$ADMIN_PASSWORD" > .env
           docker compose up -d --build
           echo "Aguardando serviços subirem..."
           for i in {1..30}; do
@@ -48,8 +62,9 @@ jobs:
         working-directory: e2e
         env:
           BASE_URL: http://localhost:8080
-          ADMIN_EMAIL: admin123456@gmail.com
-          ADMIN_PASSWORD: admin12345678
+          API_BASE_URL: http://localhost:8080/api
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           CI: true
         run: npm test
 
