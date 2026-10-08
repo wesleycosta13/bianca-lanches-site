@@ -33,6 +33,13 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
+          : "${POSTGRES_USER:?GitHub Actions secret POSTGRES_USER is missing or unavailable to this workflow}"
+          : "${POSTGRES_PASSWORD:?GitHub Actions secret POSTGRES_PASSWORD is missing or unavailable to this workflow}"
+          : "${POSTGRES_DB:?GitHub Actions secret POSTGRES_DB is missing or unavailable to this workflow}"
+          : "${JWT_SECRET:?GitHub Actions secret JWT_SECRET is missing or unavailable to this workflow}"
+          : "${ADMIN_EMAIL:?GitHub Actions secret ADMIN_EMAIL is missing or unavailable to this workflow}"
+          : "${ADMIN_PASSWORD:?GitHub Actions secret ADMIN_PASSWORD is missing or unavailable to this workflow}"
+
           printf '%s\n' \
             "POSTGRES_USER=$POSTGRES_USER" \
             "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
@@ -41,14 +48,18 @@ jobs:
             "Admin__Email=$ADMIN_EMAIL" \
             "Admin__Password=$ADMIN_PASSWORD" > .env
           docker compose up -d --build
-          echo "Aguardando serviços subirem..."
-          for i in {1..30}; do
-            if curl -s http://localhost:8080 > /dev/null; then
-              echo "Aplicação disponível no porto 8080!"
-              break
+          echo "Aguardando API ficar disponível..."
+          for i in {1..60}; do
+            if curl --fail --silent http://localhost:8080/api/products > /dev/null; then
+              echo "API disponível."
+              exit 0
             fi
             sleep 2
           done
+          docker compose ps
+          docker compose logs --tail=100 api postgres
+          echo "A API não ficou disponível dentro do tempo limite."
+          exit 1
 
       - name: Install E2E Dependencies
         working-directory: e2e
@@ -56,7 +67,7 @@ jobs:
 
       - name: Install Playwright Browsers
         working-directory: e2e
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Run Playwright Tests
         working-directory: e2e
@@ -67,6 +78,12 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           CI: true
         run: npm test
+
+      - name: Collect Docker Compose diagnostics on failure
+        if: failure()
+        run: |
+          docker compose ps --all
+          docker compose logs --no-color --tail=200 api postgres frontend
 
       - name: Upload Playwright HTML Report
         if: always()

@@ -26,7 +26,7 @@ Sistema completo de autoatendimento, cardápio digital e gestão de pedidos para
   - Interface responsiva com botão flutuante e gaveta móvel (*drawer*) para celulares.
   - Fluxo de checkout com validação de endereço, seleção de pagamento (Pix, Dinheiro, Cartão) e revisão do pedido.
 
-- **Painel Administrativo (`/admin`):**
+- **Painel Administrativo (`/`):**
   - Autenticação restrita com token JWT e controle por papel (*Admin*).
   - Gestão de pedidos com filtros de data, status (Recebido, Em preparo, Pronto, Saiu para entrega, Entregue, Cancelado) e busca por cliente/telefone.
   - Notificação de status para o cliente via WhatsApp com mensagens pré-configuradas.
@@ -73,7 +73,7 @@ POSTGRES_USER=SEU_USUARIO_DO_BANCO
 POSTGRES_PASSWORD=DEFINA_UMA_SENHA_FORTE
 POSTGRES_DB=salgados_db
 POSTGRES_HOST=localhost
-POSTGRES_HOST_PORT=5433
+POSTGRES_HOST_PORT=5433/5432
 Jwt__Secret=DEFINA_UM_SEGREDO_ALEATORIO_COM_PELO_MENOS_32_BYTES
 Admin__Email=SEU_EMAIL_DE_ADMIN
 Admin__Password=DEFINA_UMA_SENHA_FORTE_COM_PELO_MENOS_12_CARACTERES
