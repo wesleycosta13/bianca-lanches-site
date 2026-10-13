@@ -303,7 +303,7 @@ Este documento descreve os casos de teste manuais estruturados no padrão BDD (D
 
 ### TC-ADM-03: Autenticação de Administrador com Sucesso (Cenário Positivo)
 - **Objetivo:** Validar autenticação e carregamento do painel gerencial.
-- **Pré-requisitos:** Usuário administrador cadastrado no banco (ex: `admin123456@gmail.com` / `admin12345678`).
+- **Pré-requisitos:** Usuário administrador cadastrado no banco (conforme configurado nas variáveis de ambiente `Admin__Email` / `Admin__Password` no `.env`).
 - **Cenário:**
   - **Dado** que o administrador está na tela de login
   - **Quando** o administrador informa credenciais válidas e clica em "Entrar"

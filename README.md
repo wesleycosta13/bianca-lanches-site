@@ -168,8 +168,39 @@ Os cenários funcionais, usabilidade e segurança estão estruturados no formato
 dotnet test Salgados.sln
 ```
 
+### 4. Pipeline Completa com Docker (CI/CD Local)
+Execute toda a pipeline de validação (análise de compose, testes unitários e testes E2E containerizados) com um único comando:
+
+**No Windows (PowerShell):**
+```powershell
+.\scripts\docker-pipeline.ps1
+```
+
+**No Linux / macOS / WSL (Bash):**
+```bash
+chmod +x ./scripts/docker-pipeline.sh
+./scripts/docker-pipeline.sh
+```
+
+**Ou diretamente via Docker Compose:**
+```bash
+docker compose --profile e2e up --build --abort-on-container-exit --exit-code-from e2e
+```
+
+---
+
+## Pipeline de CI/CD (GitHub Actions)
+
+A esteira de integração contínua está definida em [`.github/workflows/docker-ci.yml`](.github/workflows/docker-ci.yml) e é executada automaticamente a cada push ou pull request:
+
+1. **Lint & Validação:** Valida a sintaxe do `docker-compose.yml` e integridade de todos os `Dockerfile`s (`src/backend/Salgados.Api/Dockerfile`, `frontend/Dockerfile`, `e2e/Dockerfile`).
+2. **Testes Unitários:** Executa os testes de regras de negócio em .NET 8.
+3. **E2E no Docker Compose:** Sobe PostgreSQL, API, Frontend e o container do Playwright, aguarda a inicialização e executa toda a suíte E2E.
+4. **Relatórios e Evidências:** Publica o relatório HTML do Playwright e artefatos de falha como downloads do GitHub Actions.
+5. **Publicação de Imagens (CD):** Ao realizar merge na branch `main`, constrói e publica automaticamente as imagens de produção no **GitHub Container Registry (GHCR)** com tags `latest` e hash do commit.
+
 ---
 
 ## Segurança das credenciais
 
-Configure o e-mail e a senha do administrador no `.env` 
+Configure o e-mail e a senha do administrador no `.env`

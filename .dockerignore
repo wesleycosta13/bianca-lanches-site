@@ -10,3 +10,6 @@
 **/build
 **/*.user
 **/*.log
+**/playwright-report
+**/test-results
+**/e2e/auth

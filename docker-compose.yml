@@ -45,5 +45,30 @@ services:
     depends_on:
       - api
 
+  e2e:
+    build:
+      context: .
+      dockerfile: e2e/Dockerfile
+    container_name: salgados-e2e
+    profiles:
+      - e2e
+      - test
+    env_file:
+      - .env
+    environment:
+      BASE_URL: http://frontend:8080
+      API_BASE_URL: http://frontend:8080/api
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-${Admin__Email:-}}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-${Admin__Password:-}}
+      CI: "true"
+    depends_on:
+      frontend:
+        condition: service_started
+      api:
+        condition: service_started
+    volumes:
+      - ./e2e/playwright-report:/app/e2e/playwright-report
+      - ./e2e/test-results:/app/e2e/test-results
+
 volumes:
   salgados_pgdata:

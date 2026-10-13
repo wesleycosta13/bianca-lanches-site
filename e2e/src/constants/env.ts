@@ -9,8 +9,8 @@ export const ENV = {
   API_BASE_URL: process.env.API_BASE_URL ?? "http://localhost:5173/api",
 
   ADMIN: {
-    EMAIL: process.env.ADMIN_EMAIL ?? "admin123456@gmail.com",
-    PASSWORD: process.env.ADMIN_PASSWORD ?? "admin12345678",
+    EMAIL: process.env.ADMIN_EMAIL ?? process.env.Admin__Email ?? "",
+    PASSWORD: process.env.ADMIN_PASSWORD ?? process.env.Admin__Password ?? "",
   },
 
   TEST_DATA: {

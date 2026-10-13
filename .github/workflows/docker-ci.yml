@@ -1,0 +1,208 @@
+name: Docker CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================================
+  # 1. Validação e Lint da Configuração Docker
+  # =========================================================================
+  lint-and-validate:
+    name: Lint & Docker Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validar sintaxe do Docker Compose
+        run: |
+          docker compose --profile e2e config > /dev/null
+          echo "Configuração do docker-compose.yml é válida."
+
+      - name: Validar sintaxe dos Dockerfiles
+        run: |
+          docker build --check -f src/backend/Salgados.Api/Dockerfile .
+          docker build --check -f frontend/Dockerfile .
+          docker build --check -f e2e/Dockerfile .
+          echo "Todos os Dockerfiles passaram na validação de sintaxe."
+
+  # =========================================================================
+  # 2. Testes Unitários do Backend (.NET 8)
+  # =========================================================================
+  unit-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar dependências
+        run: dotnet restore Salgados.sln
+
+      - name: Executar testes unitários
+        run: dotnet test Salgados.sln --configuration Release --no-restore --logger "trx;LogFileName=unit-tests.trx"
+
+      - name: Upload de resultados dos testes unitários
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: '**/unit-tests.trx'
+          retention-days: 14
+
+  # =========================================================================
+  # 3. Testes End-to-End no Docker Compose (Playwright)
+  # =========================================================================
+  docker-e2e:
+    name: E2E Tests in Docker
+    needs: [lint-and-validate, unit-tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Preparar ambiente e secrets
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          WHATSAPP_CONTATO: ${{ secrets.WHATSAPP_CONTATO }}
+          VITE_ADMIN_PATH: ${{ secrets.VITE_ADMIN_PATH || '/admin' }}
+        run: |
+          : "${POSTGRES_USER:?GitHub Actions secret POSTGRES_USER is missing or unavailable}"
+          : "${POSTGRES_PASSWORD:?GitHub Actions secret POSTGRES_PASSWORD is missing or unavailable}"
+          : "${POSTGRES_DB:?GitHub Actions secret POSTGRES_DB is missing or unavailable}"
+          : "${JWT_SECRET:?GitHub Actions secret JWT_SECRET is missing or unavailable}"
+          : "${ADMIN_EMAIL:?GitHub Actions secret ADMIN_EMAIL is missing or unavailable}"
+          : "${ADMIN_PASSWORD:?GitHub Actions secret ADMIN_PASSWORD is missing or unavailable}"
+          : "${WHATSAPP_CONTATO:?GitHub Actions secret WHATSAPP_CONTATO is missing or unavailable}"
+
+          printf '%s\n' \
+            "POSTGRES_USER=$POSTGRES_USER" \
+            "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" \
+            "POSTGRES_DB=$POSTGRES_DB" \
+            "Jwt__Secret=$JWT_SECRET" \
+            "Admin__Email=$ADMIN_EMAIL" \
+            "Admin__Password=$ADMIN_PASSWORD" \
+            "WHATSAPP_CONTATO=$WHATSAPP_CONTATO" \
+            "VITE_ADMIN_PATH=$VITE_ADMIN_PATH" > .env
+          echo " Arquivo .env preparado para o Docker Compose."
+
+      - name: Executar pilha completa e testes E2E no Docker
+        run: |
+          docker compose --profile e2e up --build --abort-on-container-exit --exit-code-from e2e
+
+      - name: Coletar logs de diagnóstico em caso de falha
+        if: failure()
+        run: |
+          echo "=========================================="
+          echo " Logs dos containers Docker:"
+          echo "=========================================="
+          docker compose logs --no-color --tail=200 api postgres frontend e2e
+
+      - name: Upload Playwright HTML Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14
+
+      - name: Upload Evidências de Falha (Screenshots / Traces / Vídeos)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: e2e/test-results/
+          retention-days: 14
+
+      - name: Finalizar e limpar containers
+        if: always()
+        run: docker compose down -v
+
+  # =========================================================================
+  # 4. Publicação das Imagens de Produção no GitHub Container Registry (CD)
+  # =========================================================================
+  docker-publish:
+    name: Build & Publish Production Images
+    needs: [docker-e2e]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Autenticar no GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extrair metadados e tags (API)
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/api
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=sha-
+
+      - name: Build e Push Imagem API (Backend)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: src/backend/Salgados.Api/Dockerfile
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extrair metadados e tags (Frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/frontend
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short,prefix=sha-
+
+      - name: Build e Push Imagem Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

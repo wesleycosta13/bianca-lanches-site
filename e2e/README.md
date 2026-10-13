@@ -120,3 +120,48 @@ npm run test:api
 # Visualizar o último relatório HTML
 npm run report
 ```
+
+---
+
+##  Executando com Docker
+
+O ambiente de testes E2E está completamente containerizado com a imagem oficial do Playwright (`mcr.microsoft.com/playwright`), contendo todos os navegadores (Chromium, Firefox e WebKit) pré-instalados.
+
+### 1. Executar toda a suite no Docker (Aplicação + Banco + Testes)
+
+Sobe o PostgreSQL, a API e o Frontend, aguarda a inicialização e executa os testes:
+
+```bash
+# A partir da raiz do projeto:
+docker compose --profile e2e up --build --abort-on-container-exit --exit-code-from e2e
+
+# Ou dentro da pasta e2e:
+npm run test:docker
+```
+
+> **Nota:** O container do E2E possui um `entrypoint.sh` inteligente que aguarda a API responder com status 200 antes de iniciar os testes, prevenindo falhas de concorrência ou inicialização lenta.
+
+### 2. Executar testes pontuais em container isolado
+
+Se a aplicação já estiver rodando (`docker compose up -d`):
+
+```bash
+# Executar todos os testes
+docker compose run --rm e2e
+
+# Executar apenas testes de vitrine
+docker compose run --rm e2e npx playwright test --grep @storefront
+
+# Executar apenas testes administrativos
+docker compose run --rm e2e npx playwright test --grep @admin
+
+# Executar apenas testes da API
+docker compose run --rm e2e npx playwright test --project=api
+```
+
+### 3. Relatórios e Evidências
+
+Os relatórios HTML e evidências de erro (screenshots, vídeos e traces) gerados dentro do container são mapeados automaticamente para sua máquina host através de volumes:
+- Relatório HTML: [`e2e/playwright-report/`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/e2e/playwright-report) (abra com `npm run report`)
+- Evidências de falha: [`e2e/test-results/`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/e2e/test-results)
+
