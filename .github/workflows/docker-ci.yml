@@ -90,22 +90,42 @@ jobs:
 
       - name: Preparar ambiente e secrets
         env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
-          WHATSAPP_CONTATO: ${{ secrets.WHATSAPP_CONTATO }}
-          VITE_ADMIN_PATH: ${{ secrets.VITE_ADMIN_PATH || '/admin' }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER || vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || vars.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB || vars.POSTGRES_DB }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || secrets.Jwt__Secret || vars.JWT_SECRET || vars.Jwt__Secret }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL || secrets.Admin__Email || vars.ADMIN_EMAIL || vars.Admin__Email }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD || secrets.Admin__Password || vars.ADMIN_PASSWORD || vars.Admin__Password }}
+          WHATSAPP_CONTATO: ${{ secrets.WHATSAPP_CONTATO || vars.WHATSAPP_CONTATO }}
+          VITE_ADMIN_PATH: ${{ secrets.VITE_ADMIN_PATH || vars.VITE_ADMIN_PATH || '/admin' }}
         run: |
-          : "${POSTGRES_USER:?GitHub Actions secret POSTGRES_USER is missing or unavailable}"
-          : "${POSTGRES_PASSWORD:?GitHub Actions secret POSTGRES_PASSWORD is missing or unavailable}"
-          : "${POSTGRES_DB:?GitHub Actions secret POSTGRES_DB is missing or unavailable}"
-          : "${JWT_SECRET:?GitHub Actions secret JWT_SECRET is missing or unavailable}"
-          : "${ADMIN_EMAIL:?GitHub Actions secret ADMIN_EMAIL is missing or unavailable}"
-          : "${ADMIN_PASSWORD:?GitHub Actions secret ADMIN_PASSWORD is missing or unavailable}"
-          : "${WHATSAPP_CONTATO:?GitHub Actions secret WHATSAPP_CONTATO is missing or unavailable}"
+          missing=0
+          check_env() {
+            if [ -z "$2" ]; then
+              echo "❌ $1: Não encontrado no GitHub"
+              missing=1
+            else
+              echo "✔ $1: Carregado com sucesso"
+            fi
+          }
+
+          echo "=========================================="
+          echo " Verificando presença dos segredos configurados:"
+          echo "=========================================="
+          check_env "POSTGRES_USER" "$POSTGRES_USER"
+          check_env "POSTGRES_PASSWORD" "$POSTGRES_PASSWORD"
+          check_env "POSTGRES_DB" "$POSTGRES_DB"
+          check_env "JWT_SECRET (ou Jwt__Secret)" "$JWT_SECRET"
+          check_env "ADMIN_EMAIL (ou Admin__Email)" "$ADMIN_EMAIL"
+          check_env "ADMIN_PASSWORD (ou Admin__Password)" "$ADMIN_PASSWORD"
+          check_env "WHATSAPP_CONTATO" "$WHATSAPP_CONTATO"
+          echo "=========================================="
+
+          if [ "$missing" -eq 1 ]; then
+            echo " Um ou mais segredos estão ausentes ou inacessíveis para esta execução."
+            echo "Verifique em: Settings > Secrets and variables > Actions"
+            exit 1
+          fi
 
           printf '%s\n' \
             "POSTGRES_USER=$POSTGRES_USER" \
@@ -116,7 +136,7 @@ jobs:
             "Admin__Password=$ADMIN_PASSWORD" \
             "WHATSAPP_CONTATO=$WHATSAPP_CONTATO" \
             "VITE_ADMIN_PATH=$VITE_ADMIN_PATH" > .env
-          echo " Arquivo .env preparado para o Docker Compose."
+          echo " Arquivo .env gerado na máquina efêmera do teste."
 
       - name: Executar pilha completa e testes E2E no Docker
         run: |
@@ -128,7 +148,7 @@ jobs:
           echo "=========================================="
           echo " Logs dos containers Docker:"
           echo "=========================================="
-          docker compose logs --no-color --tail=200 api postgres frontend e2e
+          docker compose logs --no-color --tail=200 api postgres frontend e2e || true
 
       - name: Upload Playwright HTML Report
         if: always()
@@ -137,6 +157,7 @@ jobs:
           name: playwright-report
           path: e2e/playwright-report/
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Upload Evidências de Falha (Screenshots / Traces / Vídeos)
         if: failure()
@@ -145,10 +166,11 @@ jobs:
           name: playwright-failure-artifacts
           path: e2e/test-results/
           retention-days: 14
+          if-no-files-found: ignore
 
       - name: Finalizar e limpar containers
         if: always()
-        run: docker compose down -v
+        run: docker compose down -v || true
 
   # =========================================================================
   # 4. Publicação das Imagens de Produção no GitHub Container Registry (CD)
