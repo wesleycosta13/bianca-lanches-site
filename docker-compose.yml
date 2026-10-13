@@ -23,7 +23,8 @@ services:
       dockerfile: src/backend/Salgados.Api/Dockerfile
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ASPNETCORE_HTTP_PORTS: "8080"
@@ -54,7 +55,8 @@ services:
       - e2e
       - test
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       BASE_URL: http://frontend:8080
       API_BASE_URL: http://frontend:8080/api

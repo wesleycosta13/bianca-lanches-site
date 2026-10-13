@@ -27,7 +27,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Validar sintaxe do Docker Compose
+        env:
+          POSTGRES_USER: validation_user
+          POSTGRES_PASSWORD: validation_password
+          POSTGRES_DB: validation_db
         run: |
+          touch .env
           docker compose --profile e2e config > /dev/null
           echo "Configuração do docker-compose.yml é válida."
 
