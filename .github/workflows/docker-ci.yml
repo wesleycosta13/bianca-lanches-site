@@ -102,7 +102,7 @@ jobs:
           missing=0
           check_env() {
             if [ -z "$2" ]; then
-              echo "❌ $1: Não encontrado no GitHub"
+              echo " $1: Não encontrado no GitHub"
               missing=1
             else
               echo "✔ $1: Carregado com sucesso"

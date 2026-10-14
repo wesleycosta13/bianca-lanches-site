@@ -1,4 +1,4 @@
-import { test, expect } from "@fixtures";
+import { test, expect } from "@playwright/test";
 
 /**
  * @storefront
@@ -7,60 +7,57 @@ import { test, expect } from "@fixtures";
 test.describe("Vitrine — Carrinho Mobile @storefront", () => {
   // Estes testes rodam no projeto storefront-mobile (iPhone 14)
 
-  test.beforeEach(async ({ catalogPage }) => {
-    await catalogPage.navigateToCatalog();
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/#cardapio");
   });
 
-  test("deve exibir botão flutuante da sacola no mobile", async ({ catalogPage }) => {
-    await expect(catalogPage.mobileCart.openButton).toBeVisible();
-    const button = await catalogPage.mobileCart.openButton.boundingBox();
-    const viewport = catalogPage.page.viewportSize();
-    expect(button).not.toBeNull();
+  test("deve exibir botão flutuante da sacola no mobile", async ({ page }) => {
+    const button = page.locator(".mobile-cart-button");
+    await expect(button).toBeVisible();
+    const box = await button.boundingBox();
+    const viewport = page.viewportSize();
+    expect(box).not.toBeNull();
     expect(viewport).not.toBeNull();
-    expect(button!.y + button!.height).toBeGreaterThan(viewport!.height - 100);
+    expect(box!.y + box!.height).toBeGreaterThan(viewport!.height - 100);
   });
 
-  test("deve abrir drawer da sacola ao clicar no botão flutuante", async ({ catalogPage }) => {
-    const { mobileCart } = catalogPage;
-    await mobileCart.open();
-
-    await expect(mobileCart.sheet).toBeVisible();
-    await expect(mobileCart.sheet).toContainText("Seu pedido");
+  test("deve abrir drawer da sacola ao clicar no botão flutuante", async ({ page }) => {
+    await page.locator(".mobile-cart-button").click();
+    const sheet = page.locator(".mobile-cart-sheet");
+    await expect(sheet).toBeVisible();
+    await expect(sheet).toContainText("Seu pedido");
   });
 
-  test("deve fechar drawer da sacola ao clicar no X", async ({ catalogPage }) => {
-    const { mobileCart } = catalogPage;
-    await mobileCart.open();
-    await expect(mobileCart.sheet).toBeVisible();
-
-    await mobileCart.close();
-    await expect(mobileCart.sheet).not.toBeVisible();
+  test("deve fechar drawer da sacola ao clicar no X", async ({ page }) => {
+    await page.locator(".mobile-cart-button").click();
+    const sheet = page.locator(".mobile-cart-sheet");
+    await expect(sheet).toBeVisible();
+    await sheet.getByLabel("Fechar sacola").click();
+    await expect(sheet).not.toBeVisible();
   });
 
-  test("deve abrir drawer automaticamente ao adicionar item no mobile", async ({ catalogPage }) => {
-    const { mobileCart } = catalogPage;
-    await catalogPage.getFirstProductCard().addToCart();
-
-    await expect(mobileCart.sheet).toBeVisible();
+  test("deve abrir drawer automaticamente ao adicionar item no mobile", async ({ page }) => {
+    await page.locator(".product-card").first().getByRole("button", { name: /adicionar/i }).click();
+    await expect(page.locator(".mobile-cart-sheet")).toBeVisible();
   });
 
-  test("deve exibir campos de checkout no drawer mobile quando tem itens", async ({ catalogPage }) => {
-    const { mobileCart } = catalogPage;
-    await catalogPage.getFirstProductCard().addToCart();
-
-    await expect(mobileCart.checkoutDetails).toBeVisible();
+  test("deve exibir campos de checkout no drawer mobile quando tem itens", async ({ page }) => {
+    await page.locator(".product-card").first().getByRole("button", { name: /adicionar/i }).click();
+    await expect(page.locator(".mobile-cart-sheet .checkout-details")).toBeVisible();
   });
 
-  test("deve fechar o drawer ao tocar no overlay sem esvaziar a sacola", async ({ catalogPage }) => {
-    const { mobileCart } = catalogPage;
-    await catalogPage.getProductCard("Carne").addToCart();
-    await expect(mobileCart.openButton).toHaveAttribute("aria-label", /1 itens/);
-    await expect(mobileCart.sheet).toBeVisible();
+  test("deve fechar o drawer ao tocar no overlay sem esvaziar a sacola", async ({ page }) => {
+    const openButton = page.locator(".mobile-cart-button");
+    await page.locator(".product-card").filter({ hasText: "Carne" }).first()
+      .getByRole("button", { name: /adicionar/i }).click();
 
-    await catalogPage.page.locator(".mobile-cart-overlay").click({ position: { x: 10, y: 10 } });
+    await expect(openButton).toHaveAttribute("aria-label", /1 itens/);
+    await expect(page.locator(".mobile-cart-sheet")).toBeVisible();
 
-    await expect(mobileCart.sheet).not.toBeVisible();
-    await mobileCart.open();
-    await expect(mobileCart.sheet).toContainText("Carne");
+    await page.locator(".mobile-cart-overlay").click({ position: { x: 10, y: 10 } });
+    await expect(page.locator(".mobile-cart-sheet")).not.toBeVisible();
+
+    await openButton.click();
+    await expect(page.locator(".mobile-cart-sheet")).toContainText("Carne");
   });
 });

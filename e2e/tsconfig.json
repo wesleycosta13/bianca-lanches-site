@@ -11,12 +11,8 @@
     "rootDir": ".",
     "baseUrl": ".",
     "paths": {
-      "@pages/*": ["src/pages/*"],
-      "@components/*": ["src/components/*"],
       "@fixtures": ["src/fixtures/index"],
       "@fixtures/*": ["src/fixtures/*"],
-      "@models/*": ["src/models/*"],
-      "@data/*": ["src/data/*"],
       "@constants/*": ["src/constants/*"]
     }
   },

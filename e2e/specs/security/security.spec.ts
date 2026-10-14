@@ -1,5 +1,5 @@
-import { test, expect } from "@fixtures";
 import { ENV } from "@constants/env";
+import { test, expect } from "@playwright/test";
 
 /**
  * @security
