@@ -241,7 +241,7 @@ test.describe("Admin — Painel Administrativo @admin", () => {
   test("deve zerar tentativas e liberar um acesso bloqueado", async ({ page }) => {
     const email = "blocked-e2e@example.com";
     let attempts = [{
-      id: 92001, email, ipAddress: "192.0.2.10", numberOfAt: 5,
+      id: 92001, email, ipAddress: "192.0.2.10", numberOfAt: 1,
       attemptedAt: new Date().toISOString(), clearedAt: null as string | null,
     }];
     let blockedLogins = [{
@@ -286,7 +286,7 @@ test.describe("Admin — Painel Administrativo @admin", () => {
 
     page.once("dialog", (dialog) => dialog.accept());
     await blockedEntry.getByRole("button", { name: /liberar acesso/i }).click();
-    await expect(blockedSection.getByText("Nenhum acesso bloqueado")).toBeVisible();
+    await expect(blockedSection.getByText("Nenhum bloqueio antigo por e-mail")).toBeVisible();
     await expect(page.locator(".admin-success")).toContainText(`Acesso liberado para ${email}`);
     expect(blockedLogins).toHaveLength(0);
   });
