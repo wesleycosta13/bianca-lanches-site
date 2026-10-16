@@ -1,6 +1,7 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import { ENV } from "@constants/env";
+
 import { test, expect, type Page } from "@playwright/test";
 
 const ADMIN_TOKEN_FILE = path.resolve(import.meta.dirname, "../../auth/admin-token.txt");
@@ -46,10 +47,10 @@ function selectTab(page: Page, tab: "orders" | "products" | "security") {
   return tabMap[tab].click();
 }
 
+
 // ── Testes ─────────────────────────────────────────────────────────────────────
 
 test.describe("Admin — Painel Administrativo @admin", () => {
-
   test("deve carregar o dashboard com as abas principais", async ({ page }) => {
     await expect(page.locator(".admin-brand")).toBeVisible();
     await expect(page.locator(".admin-title-row h1")).toContainText("Pedidos");

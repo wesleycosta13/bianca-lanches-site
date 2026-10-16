@@ -1,4 +1,5 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "@fixtures";
+import { ENV } from "@constants/env";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -27,5 +28,14 @@ test.describe("Admin — Login @admin", () => {
     const link = page.getByRole("link", { name: /voltar para a loja/i });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute("href", "/");
+  });
+
+  test("deve permitir login com credenciais válidas", async ({ page }) => {
+    await page.getByLabel("E-mail").fill(ENV.ADMIN.EMAIL);
+    await page.getByLabel("Senha").fill(ENV.ADMIN.PASSWORD);
+    await page.getByRole("button", { name: "Entrar" }).click();
+
+    await expect(page.locator(".admin-workspace")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".admin-tabs")).toBeVisible();
   });
 });

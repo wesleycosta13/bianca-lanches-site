@@ -70,7 +70,7 @@ if (-not $SkipE2E) {
     
     if ($Grep -ne "" -or $Project -ne "") {
         Write-Host "[INFO] Executando teste direcionado com container isolado..." -ForegroundColor Yellow
-        $customArgs = @("compose", "run", "--rm", "e2e", "npx", "playwright", "test")
+        $customArgs = @("compose", "run", "--build", "--rm", "e2e", "npx", "playwright", "test")
         if ($Grep -ne "") { $customArgs += @("--grep", $Grep) }
         if ($Project -ne "") { $customArgs += @("--project", $Project) }
         docker @customArgs

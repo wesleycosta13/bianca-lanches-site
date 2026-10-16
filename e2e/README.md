@@ -85,8 +85,8 @@ cp .env.example .env
 
 | Variável | Descrição | Padrão |
 | :--- | :--- | :--- |
-| `BASE_URL` | URL do frontend | `http://localhost:5173` |
-| `API_BASE_URL` | URL da API backend | `http://localhost:5173/api` |
+| `BASE_URL` | URL do frontend para testes locais | `http://localhost:5173` |
+| `API_BASE_URL` | URL da API para testes locais | `http://localhost:5173/api` |
 | `ADMIN_EMAIL` | E-mail de administrador para setup e testes | `admin@biancalanches.com` |
 | `ADMIN_PASSWORD` | Senha da conta de administrador | `Admin@123` |
 | `TEST_CUSTOMER_NAME` | Nome padrão do cliente nos testes | `João Silva` |
@@ -139,29 +139,30 @@ docker compose --profile e2e up --build --abort-on-container-exit --exit-code-fr
 npm run test:docker
 ```
 
-> **Nota:** O container do E2E possui um `entrypoint.sh` inteligente que aguarda a API responder com status 200 antes de iniciar os testes, prevenindo falhas de concorrência ou inicialização lenta.
+> **Nota:** Dentro da rede do Compose, o container E2E acessa o frontend por `http://frontend:8080` e a API por `http://frontend:8080/api`. Não use `localhost` nessas URLs, pois ele apontaria para o próprio container de testes. O entrypoint faz uma requisição GET a `/api/products` e aguarda a API estar disponível antes de iniciar os testes.
+>
+> O Compose e o Dockerfile já passam essas URLs por `BASE_URL` e `API_BASE_URL`. Se não forem definidas, a configuração também usa `frontend:8080` quando `CI=true` (como no container E2E) e mantém `localhost:5173` para execução local.
 
 ### 2. Executar testes pontuais em container isolado
 
-Se a aplicação já estiver rodando (`docker compose up -d`):
+Se a aplicação já estiver rodando (`docker compose up -d`), rode o comando a partir da raiz do projeto. O container E2E recebe automaticamente as URLs internas do Compose:
 
 ```bash
-# Executar todos os testes
-docker compose run --rm e2e
+# Executar todos os testes (reconstrói a imagem E2E)
+docker compose run --build --rm e2e
 
 # Executar apenas testes de vitrine
-docker compose run --rm e2e npx playwright test --grep @storefront
+docker compose run --build --rm e2e npx playwright test --grep @storefront
 
 # Executar apenas testes administrativos
-docker compose run --rm e2e npx playwright test --grep @admin
+docker compose run --build --rm e2e npx playwright test --grep @admin
 
 # Executar apenas testes da API
-docker compose run --rm e2e npx playwright test --project=api
+docker compose run --build --rm e2e npx playwright test --project=api
 ```
 
 ### 3. Relatórios e Evidências
 
 Os relatórios HTML e evidências de erro (screenshots, vídeos e traces) gerados dentro do container são mapeados automaticamente para sua máquina host através de volumes:
-- Relatório HTML: [`e2e/playwright-report/`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/e2e/playwright-report) (abra com `npm run report`)
-- Evidências de falha: [`e2e/test-results/`](file:///c:/Users/Wesle/Documents/LanchoneteMãe/e2e/test-results)
-
+- Relatório HTML: [`e2e/playwright-report/`](file:e2e/playwright-report) (abra com `npm run report`)
+- Evidências de falha: [`e2e/test-results/`](file:/e2e/test-results)

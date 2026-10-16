@@ -18,6 +18,7 @@ setup("autenticar como administrador", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Pedidos" })).toBeVisible({ timeout: 15_000 });
 
+  await page.waitForFunction(() => sessionStorage.getItem("admin-token"), null, { timeout: 15_000 });
   const token = await page.evaluate(() => sessionStorage.getItem("admin-token"));
   expect(token).toBeTruthy();
   await mkdir(path.dirname(ADMIN_TOKEN_FILE), { recursive: true });

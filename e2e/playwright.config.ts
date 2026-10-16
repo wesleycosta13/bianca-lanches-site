@@ -9,12 +9,15 @@ dotenv.config({ path: path.resolve(import.meta.dirname, ".env") });
  * Configuração do Playwright para testes E2E da Bianca Lanches.
  *
  * Pré-requisito: a aplicação deve estar rodando localmente ou via Docker Compose.
- * - Frontend: http://localhost:5173 (dev) ou http://localhost:8080 (Docker)
- * - API:      http://localhost:5173/api (proxy Vite) ou http://localhost:8080/api
- *
- * Para rodar contra Docker Compose, altere BASE_URL para http://localhost:8080.
+ * - Testes locais: localhost:5173 (frontend dev server) e localhost:5173/api (proxy Vite)
+ * - Testes no host contra Docker: localhost:8080
+ * - Testes dentro do Compose: frontend:8080 (definido no serviço e2e)
  */
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:5173";
+const DEFAULT_BASE_URL = process.env.CI === "true"
+  ? "http://frontend:8080"
+  : "http://localhost:5173";
+const BASE_URL = process.env.BASE_URL ?? DEFAULT_BASE_URL;
+const ADMIN_AUTH_FILE = path.resolve(import.meta.dirname, "auth", "admin.json");
 
 export default defineConfig({
   testDir: "./specs",
@@ -41,6 +44,7 @@ export default defineConfig({
     // Autenticação do admin — roda antes dos testes admin
     {
       name: "admin-setup",
+      testDir: "./setup",
       testMatch: /global\.setup\.ts/,
     },
 
@@ -48,7 +52,6 @@ export default defineConfig({
     {
       name: "storefront-chromium",
       use: { ...devices["Desktop Chrome"] },
-      dependencies: ["admin-setup"],
       testMatch: /storefront\/(?!mobile\.spec\.ts$).+\.spec\.ts$/,
     },
     {
@@ -62,7 +65,7 @@ export default defineConfig({
       name: "admin-chromium",
       use: {
         ...devices["Desktop Chrome"],
-        storageState: "./auth/admin.json",
+        storageState: ADMIN_AUTH_FILE,
       },
       dependencies: ["admin-setup"],
       testMatch: /admin\/.+\.spec\.ts/,

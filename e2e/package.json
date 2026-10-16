@@ -13,7 +13,7 @@
     "test:security": "npx playwright test --grep @security",
     "test:api": "npx playwright test --project=api",
     "test:docker": "docker compose --profile e2e up --build --abort-on-container-exit --exit-code-from e2e",
-    "test:docker:run": "docker compose run --rm e2e",
+    "test:docker:run": "docker compose run --build --rm e2e",
     "report": "npx playwright show-report"
   },
   "devDependencies": {

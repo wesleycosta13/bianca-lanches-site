@@ -13,7 +13,7 @@ if [ "${SKIP_WAIT:-false}" != "true" ]; then
   echo "=========================================================="
 
   retry=1
-  until curl --fail --silent --head "$TARGET_URL" > /dev/null 2>&1 || [ "$retry" -gt "$MAX_RETRIES" ]; do
+  until curl --fail --silent --output /dev/null "$TARGET_URL" > /dev/null 2>&1 || [ "$retry" -gt "$MAX_RETRIES" ]; do
     echo "  [Tentativa $retry/$MAX_RETRIES] Aplicação inicializando, aguardando ${RETRY_INTERVAL}s..."
     sleep "$RETRY_INTERVAL"
     retry=$((retry + 1))
