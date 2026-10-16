@@ -1,9 +1,9 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 /**
  * Helper: adiciona um produto ao carrinho pelo nome.
  */
-async function addToCart(page: Parameters<typeof test>[1] extends { page: infer P } ? P : never, productName: string) {
+async function addToCart(page: Page, productName: string) {
   const card = page.locator(".product-card").filter({ hasText: productName }).first();
   await card.getByRole("button", { name: /adicionar/i }).click();
 }
@@ -11,7 +11,7 @@ async function addToCart(page: Parameters<typeof test>[1] extends { page: infer 
 /**
  * Helper: seleciona uma variante de produto pelo texto (ex: "G").
  */
-async function selectVariant(page: Parameters<typeof test>[1] extends { page: infer P } ? P : never, productName: string, variantText: string) {
+async function selectVariant(page: Page, productName: string, variantText: string) {
   const card = page.locator(".product-card").filter({ hasText: productName }).first();
   const select = card.locator(".variant-select-label select");
   const options = await select.locator("option").allTextContents();

@@ -21,8 +21,8 @@ RUN sed -i 's/\r$//' ./entrypoint.sh && chmod +x ./entrypoint.sh
 
 # Variáveis padrão na rede Docker Compose
 ENV CI=true
-ENV BASE_URL=http://frontend:8080
-ENV API_BASE_URL=http://frontend:8080/api
+ENV BASE_URL=http://127.0.0.1:8080/
+ENV API_BASE_URL=http://127.0.0.1:8080/api
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["npx", "playwright", "test"]

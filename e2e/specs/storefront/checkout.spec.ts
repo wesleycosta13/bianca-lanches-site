@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { fakerPT_BR as faker } from "@faker-js/faker";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -8,8 +8,6 @@ const ADMIN_TOKEN_FILE = path.resolve(import.meta.dirname, "../../auth/admin-tok
 const API_BASE_URL = ENV.API_BASE_URL.replace(/\/+$/, "");
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-type Page = Parameters<typeof test>[1] extends { page: infer P } ? P : never;
 
 async function addToCart(page: Page, productName: string) {
   await page.locator(".product-card").filter({ hasText: productName }).first()

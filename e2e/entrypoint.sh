@@ -2,7 +2,7 @@
 set -e
 
 # Configurações de espera para a aplicação estar pronta antes de rodar os testes
-TARGET_URL="${WAIT_FOR_URL:-${API_BASE_URL:-http://frontend:8080/api}/products}"
+TARGET_URL="${WAIT_FOR_URL:-${API_BASE_URL:-http://127.0.0.1:8080/api}/products}"
 MAX_RETRIES="${WAIT_MAX_RETRIES:-60}"
 RETRY_INTERVAL="${WAIT_RETRY_INTERVAL:-2}"
 
