@@ -101,13 +101,16 @@ Acessos:
 Comandos úteis:
 
 ```bash
-# Visualizar logs
-docker compose logs -f
+# Reconstruir e reiniciar a API e o Frontend após alterações no código
+docker compose up -d --build api frontend
 
 # Verificar status dos containers
 docker compose ps
 
-# Parar serviços
+# Acompanhar os logs da API e do Frontend
+docker compose logs -f api frontend
+
+# Parar os serviços sem apagar os dados do banco
 docker compose down
 ```
 

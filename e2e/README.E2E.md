@@ -127,7 +127,35 @@ npm run report
 
 O ambiente de testes E2E está completamente containerizado com a imagem oficial do Playwright (`mcr.microsoft.com/playwright`), contendo todos os navegadores (Chromium, Firefox e WebKit) pré-instalados.
 
-### 1. Executar toda a suite no Docker (Aplicação + Banco + Testes)
+### 1. Subir ou atualizar a aplicação
+
+Execute os comandos a partir da raiz do repositório. O Compose inicia o PostgreSQL, a API e o Frontend:
+
+```bash
+# Construir as imagens e iniciar a aplicação em segundo plano
+docker compose up -d --build
+
+# Verificar o estado dos serviços
+docker compose ps
+
+# Acompanhar os logs da API e do Frontend
+docker compose logs -f api frontend
+```
+
+Para reconstruir e recriar apenas a API e o Frontend após alterações no código:
+
+```bash
+docker compose up -d --build api frontend
+```
+
+A aplicação fica disponível em `http://localhost:8080`; o painel administrativo, em `http://localhost:8080/admin`.
+
+```bash
+# Parar os serviços sem apagar os dados do banco
+docker compose down
+```
+
+### 2. Executar toda a suite no Docker (Aplicação + Banco + Testes)
 
 Sobe o PostgreSQL, a API e o Frontend, aguarda a inicialização e executa os testes:
 
@@ -143,7 +171,7 @@ npm run test:docker
 >
 > O Compose e o Dockerfile já passam essas URLs por `BASE_URL` e `API_BASE_URL`. Se não forem definidas, a configuração também usa `frontend:8080` quando `CI=true` (como no container E2E) e mantém `localhost:5173` para execução local.
 
-### 2. Executar testes pontuais em container isolado
+### 3. Executar testes pontuais em container isolado
 
 Se a aplicação já estiver rodando (`docker compose up -d`), rode o comando a partir da raiz do projeto. O container E2E recebe automaticamente as URLs internas do Compose:
 
@@ -161,7 +189,7 @@ docker compose run --build --rm e2e npx playwright test --grep @admin
 docker compose run --build --rm e2e npx playwright test --project=api
 ```
 
-### 3. Relatórios e Evidências
+### 4. Relatórios e Evidências
 
 Os relatórios HTML e evidências de erro (screenshots, vídeos e traces) gerados dentro do container são mapeados automaticamente para sua máquina host através de volumes:
 - Relatório HTML: [`e2e/playwright-report/`](file:e2e/playwright-report) (abra com `npm run report`)

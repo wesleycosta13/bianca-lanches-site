@@ -47,6 +47,62 @@ function selectTab(page: Page, tab: "orders" | "products" | "security") {
   return tabMap[tab].click();
 }
 
+async function createProduct(page: Page, productName: string): Promise<number> {
+  await selectTab(page, "products");
+  await page.getByRole("button", { name: /novo produto/i }).click();
+  const form = page.locator(".admin-product-form");
+  await form.getByLabel("Nome do produto").fill(productName);
+  await form.getByLabel("Descrição").fill("Produto criado pelo teste automatizado.");
+  await form.getByLabel("Categoria").selectOption({ index: 1 });
+  await form.locator(".admin-variant-row").getByLabel("Nome").fill("Unidade");
+  await form.locator(".admin-variant-row").getByLabel("Preço (R$)").fill("4.50");
+  await form.getByLabel("Estoque").fill("10");
+
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/api/products") && response.request().method() === "POST",
+  );
+  await form.getByRole("button", { name: /cadastrar produto/i }).click();
+  const response = await responsePromise;
+  expect(response.ok()).toBeTruthy();
+
+  const result = await response.json() as { data: { id: number } };
+  await expect(page.locator(".admin-success")).toContainText("Produto cadastrado com sucesso.");
+  return result.data.id;
+}
+
+async function updateProductDescription(page: Page, productName: string): Promise<void> {
+  const form = page.locator(".admin-product-form");
+  const productRow = page.locator(".admin-product-row").filter({ hasText: productName });
+  await productRow.getByRole("button", { name: `Editar ${productName}` }).click();
+  await form.getByLabel("Descrição").fill("Descrição atualizada pelo teste automatizado.");
+
+  const responsePromise = page.waitForResponse(
+    (response) => response.url().match(/\/api\/products\/\d+$/) !== null && response.request().method() === "PUT",
+  );
+  await form.getByRole("button", { name: /salvar alterações/i }).click();
+  expect((await responsePromise).ok()).toBeTruthy();
+  await expect(page.locator(".admin-success")).toContainText("Produto atualizado com sucesso.");
+}
+
+async function expectProductPublished(page: Page, productName: string): Promise<void> {
+  const response = await page.request.get(`${API_BASE_URL}/products`);
+  expect(response.ok()).toBeTruthy();
+
+  const result = await response.json() as { data: Array<{ name: string }> };
+  expect(result.data.some((product) => product.name === productName)).toBeTruthy();
+
+  await page.goto(new URL("/", ENV.BASE_URL).toString());
+  await expect(page.locator(".product-card").filter({ hasText: productName })).toBeVisible();
+}
+
+async function deleteProduct(page: Page, productId: number, token: string): Promise<void> {
+  const response = await page.request.delete(
+    new URL(`/api/products/${productId}`, ENV.BASE_URL).toString(),
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
+  expect(response.ok()).toBeTruthy();
+}
+
 
 // ── Testes ─────────────────────────────────────────────────────────────────────
 
@@ -111,50 +167,21 @@ test.describe("Admin — Painel Administrativo @admin", () => {
     expect(token).toBeTruthy();
 
     try {
-      await selectTab(page, "products");
-      await page.getByRole("button", { name: /novo produto/i }).click();
-      const form = page.locator(".admin-product-form");
-      await form.getByLabel("Nome do produto").fill(productName);
-      await form.getByLabel("Descrição").fill("Produto criado pelo teste automatizado.");
-      await form.getByLabel("Categoria").selectOption({ index: 1 });
-      await form.locator(".admin-variant-row").getByLabel("Nome").fill("Unidade");
-      await form.locator(".admin-variant-row").getByLabel("Preço (R$)").fill("4.50");
-      await form.getByLabel("Estoque").fill("10");
-
-      const createResponse = page.waitForResponse(
-        (response) => response.url().endsWith("/api/products") && response.request().method() === "POST",
-      );
-      await form.getByRole("button", { name: /cadastrar produto/i }).click();
-      const response = await createResponse;
-      expect(response.ok()).toBeTruthy();
-      const result = await response.json() as { data: { id: number } };
-      createdProductId = result.data.id;
-      await expect(page.locator(".admin-success")).toContainText("Produto cadastrado com sucesso.");
-
-      const productRow = page.locator(".admin-product-row").filter({ hasText: productName });
-      await productRow.getByRole("button", { name: `Editar ${productName}` }).click();
-      await form.getByLabel("Descrição").fill("Descrição atualizada pelo teste automatizado.");
-      const updateResponse = page.waitForResponse(
-        (candidate) => candidate.url().match(/\/api\/products\/\d+$/) !== null && candidate.request().method() === "PUT",
-      );
-      await form.getByRole("button", { name: /salvar alterações/i }).click();
-      expect((await updateResponse).ok()).toBeTruthy();
-      await expect(page.locator(".admin-success")).toContainText("Produto atualizado com sucesso.");
-
-      const storefrontResponse = await page.request.get(`${API_BASE_URL}/products`);
-      expect(storefrontResponse.ok()).toBeTruthy();
-      const storefrontResult = await storefrontResponse.json() as { data: Array<{ name: string }> };
-      expect(storefrontResult.data.some((product) => product.name === productName)).toBeTruthy();
-
-      await page.goto(new URL("/", ENV.BASE_URL).toString());
-      await expect(page.locator(".product-card").filter({ hasText: productName })).toBeVisible();
+      await test.step("Cadastrar produto pelo painel", async () => {
+        createdProductId = await createProduct(page, productName);
+      });
+      await test.step("Atualizar produto cadastrado", async () => {
+        await updateProductDescription(page, productName);
+      });
+      await test.step("Confirmar produto na API e na vitrine", async () => {
+        await expectProductPublished(page, productName);
+      });
     } finally {
-      if (createdProductId !== null && token) {
-        const deleteResponse = await page.request.delete(
-          new URL(`/api/products/${createdProductId}`, ENV.BASE_URL).toString(),
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        expect(deleteResponse.ok()).toBeTruthy();
+      const productId = createdProductId;
+      if (productId !== null && token) {
+        await test.step("Remover produto criado pelo teste", async () => {
+          await deleteProduct(page, productId, token);
+        });
       }
     }
   });

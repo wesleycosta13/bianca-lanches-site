@@ -7,10 +7,11 @@ dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 const DEFAULT_BASE_URL = process.env.CI === "true"
   ? "http://frontend:8080"
   : "http://localhost:5173";
+const BASE_URL = process.env.BASE_URL ?? DEFAULT_BASE_URL;
 
 export const ENV = {
-  BASE_URL: process.env.BASE_URL ?? DEFAULT_BASE_URL,
-  API_BASE_URL: process.env.API_BASE_URL ?? `${DEFAULT_BASE_URL}/api`,
+  BASE_URL,
+  API_BASE_URL: process.env.API_BASE_URL ?? `${BASE_URL.replace(/\/+$/, "")}/api`,
 
   ADMIN: {
     EMAIL: process.env.ADMIN_EMAIL ?? process.env.Admin__Email ?? "",

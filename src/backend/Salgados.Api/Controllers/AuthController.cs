@@ -37,7 +37,6 @@ public class AuthController : ControllerBase
     /// Autentica o administrador do sistema e retorna o Token JWT.
     /// </summary>
     [HttpPost("login")]
-    [EnableRateLimiting("authentication")]
     [ProducesResponseType(typeof(ApiResponse<AuthResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status423Locked)]

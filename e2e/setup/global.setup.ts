@@ -14,7 +14,21 @@ setup("autenticar como administrador", async ({ page }) => {
   await page.goto("/admin");
   await page.getByLabel("E-mail").fill(ENV.ADMIN.EMAIL);
   await page.getByLabel("Senha").fill(ENV.ADMIN.PASSWORD);
+
+  const loginResponsePromise = page.waitForResponse(
+    (response) => response.url().endsWith("/api/auth/login") && response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Entrar" }).click();
+  const loginResponse = await loginResponsePromise;
+  if (loginResponse.status() === 423) {
+    throw new Error(
+      "O IP atingiu o limite de tentativas inválidas de login. Aguarde 15 minutos antes de executar o setup novamente.",
+    );
+  }
+  expect(
+    loginResponse.ok(),
+    `A API de login respondeu com HTTP ${loginResponse.status()}. Verifique a conexão com a API e as credenciais configuradas.`,
+  ).toBeTruthy();
 
   await expect(page.getByRole("heading", { name: "Pedidos" })).toBeVisible({ timeout: 15_000 });
 

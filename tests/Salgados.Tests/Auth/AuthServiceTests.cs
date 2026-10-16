@@ -96,7 +96,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_ShouldPermanentlyBlockEmailAfterFiveFailedAttemptsAndKeepAttemptMetadata()
+    public async Task LoginAsync_ShouldLimitFailedAttemptsByIpButAllowValidAdminLogin()
     {
         await using var context = CreateContext();
         context.Users.Add(new User
@@ -105,6 +105,12 @@ public class AuthServiceTests
             Email = "admin@example.com",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("correct-password"),
             Role = UserRole.Admin
+        });
+        context.BlockedLogins.Add(new BlockedLogin
+        {
+            Email = "admin@example.com",
+            BlockedAt = DateTime.UtcNow,
+            FailedAttempts = LoginLockedException.AttemptLimit
         });
         await context.SaveChangesAsync();
 
@@ -128,27 +134,43 @@ public class AuthServiceTests
             && attempt.IpAddress == "192.0.2.10"
             && attempt.NumberOfAt == LoginLockedException.AttemptLimit
             && attempt.AttemptedAt != default);
-        (await context.BlockedLogins.SingleAsync()).FailedAttempts.Should().Be(LoginLockedException.AttemptLimit);
 
-        var validPassword = () => service.LoginAsync(
-            new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
-            "198.51.100.20");
-        await validPassword.Should().ThrowAsync<LoginLockedException>();
-        (await context.LoginAttempts.CountAsync()).Should().Be(2);
-
-        var blockedLogins = await service.GetBlockedLoginsAsync();
-        blockedLogins.Should().ContainSingle();
-        blockedLogins[0].Email.Should().Be("admin@example.com");
-        blockedLogins[0].FailedAttempts.Should().Be(LoginLockedException.AttemptLimit);
-        blockedLogins[0].IpAddresses.Should().BeEquivalentTo("192.0.2.10", "198.51.100.20");
-
-        await service.UnblockLoginAsync(" ADMIN@example.com ");
-        (await context.BlockedLogins.CountAsync()).Should().Be(0);
-        (await context.LoginAttempts.CountAsync(attempt => attempt.ClearedAt != null)).Should().Be(2);
         var response = await service.LoginAsync(
             new LoginRequest { Email = "admin@example.com", Password = "correct-password" },
             "192.0.2.10");
         response.Role.Should().Be(nameof(UserRole.Admin));
+        (await context.BlockedLogins.CountAsync()).Should().Be(0);
+        var clearedAttempt = await context.LoginAttempts.SingleAsync();
+        clearedAttempt.NumberOfAt.Should().Be(0);
+        clearedAttempt.ClearedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task LoginAsync_ShouldResetFailedAttemptCountAfter15Minutes()
+    {
+        await using var context = CreateContext();
+        var service = new AuthService(context, CreateTokenService().Object);
+        var request = new LoginRequest { Email = "user@example.com", Password = "wrong-password" };
+        const string ip = "192.0.2.11";
+
+        for (var attempt = 0; attempt < LoginLockedException.AttemptLimit; attempt++)
+        {
+            var failure = () => service.LoginAsync(request, ip);
+            if (attempt == LoginLockedException.AttemptLimit - 1)
+                await failure.Should().ThrowAsync<LoginLockedException>();
+            else
+                await failure.Should().ThrowAsync<UnauthorizedAccessException>();
+        }
+
+        var recordedAttempt = await context.LoginAttempts.SingleAsync();
+        recordedAttempt.AttemptedAt = DateTime.UtcNow.AddMinutes(-16);
+        await context.SaveChangesAsync();
+
+        var newWindowFailure = () => service.LoginAsync(request, ip);
+        await newWindowFailure.Should().ThrowAsync<UnauthorizedAccessException>()
+            .WithMessage("E-mail ou senha inválidos.");
+        recordedAttempt.NumberOfAt.Should().Be(1);
+        recordedAttempt.ClearedAt.Should().BeNull();
     }
 
     [Fact]
@@ -209,7 +231,7 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task LoginAsync_ShouldLockUser_WhenNumberOfAtReachesFive()
+    public async Task LoginAsync_ShouldLimitIpAfterFiveFailedAttemptsWithoutBlockingEmail()
     {
         await using var context = CreateContext();
         var service = new AuthService(context, CreateTokenService().Object);
@@ -227,13 +249,13 @@ public class AuthServiceTests
         var fifthAttempt = () => service.LoginAsync(request, ip);
         await fifthAttempt.Should().ThrowAsync<LoginLockedException>();
 
-        // Verifica que o bloqueio foi persistido na tabela BlockedLogins
-        var blocked = await context.BlockedLogins.FirstOrDefaultAsync(b => b.Email == "user@example.com");
-        blocked.Should().NotBeNull();
-        blocked!.FailedAttempts.Should().Be(5);
+        (await context.BlockedLogins.CountAsync()).Should().Be(0);
 
-        // O único registro para o IP deve ter NumberOfAt = 5
         var attempt = await context.LoginAttempts.SingleAsync(a => a.IpAddress == ip);
+        attempt.NumberOfAt.Should().Be(5);
+
+        var blockedAttempt = () => service.LoginAsync(request, ip);
+        await blockedAttempt.Should().ThrowAsync<LoginLockedException>();
         attempt.NumberOfAt.Should().Be(5);
     }
 

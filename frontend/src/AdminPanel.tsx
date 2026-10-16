@@ -584,7 +584,7 @@ function AdminPanel() {
         ) : (
           <section className="admin-workspace" aria-label="Acessos administrativos bloqueados">
             <div className="admin-list-heading">
-              <div><h2>Acessos bloqueados</h2><span>Bloqueio permanente após 5 falhas em 15 minutos</span></div>
+              <div><h2>Bloqueios antigos por e-mail</h2><span>Registros anteriores ao limite temporário de tentativas por IP</span></div>
             </div>
             {blockedLogins.length ? <div className="admin-order-list">
               {blockedLogins.map((blockedLogin) => <article className="admin-order-row" key={blockedLogin.email}>
@@ -595,10 +595,10 @@ function AdminPanel() {
                 </div>
                 <button className="admin-secondary-button" onClick={() => unblockLogin(blockedLogin)}>Liberar acesso</button>
               </article>)}
-            </div> : <div className="admin-empty"><ShieldCheck size={25} /><strong>Nenhum acesso bloqueado</strong><span>Os bloqueios permanentes aparecerão aqui.</span></div>}
+            </div> : <div className="admin-empty"><ShieldCheck size={25} /><strong>Nenhum bloqueio antigo por e-mail</strong><span>O limite atual é temporário e aplicado por IP.</span></div>}
 
             <div className="admin-list-heading" style={{ marginTop: "2rem" }}>
-              <div><h2>Monitoramento de IPs e Tentativas</h2><span>Registros atualizados por IP (máx. 5 tentativas em 15 min)</span></div>
+              <div><h2>Monitoramento de IPs e Tentativas</h2><span>5 falhas inválidas por IP em 15 min; logins válidos continuam permitidos</span></div>
             </div>
             {loginAttempts.length ? <div className="admin-order-list">
               {loginAttempts.map((attempt) => (

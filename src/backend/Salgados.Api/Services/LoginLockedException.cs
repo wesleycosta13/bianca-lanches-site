@@ -5,7 +5,7 @@ public class LoginLockedException : UnauthorizedAccessException
     public const int AttemptLimit = 5;
 
     public LoginLockedException()
-        : base($"Este e-mail foi bloqueado após {AttemptLimit} tentativas inválidas. Solicite a liberação a um administrador.")
+        : base($"O acesso foi limitado após {AttemptLimit} tentativas inválidas. Aguarde 15 minutos antes de tentar novamente.")
     {
     }
 }

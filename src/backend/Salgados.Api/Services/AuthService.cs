@@ -31,14 +31,6 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request, string? ipAddress = null)
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var blockedLogin = await _context.BlockedLogins
-            .FirstOrDefaultAsync(blocked => blocked.Email == normalizedEmail);
-        if (blockedLogin is not null)
-        {
-            await RecordAttemptAsync(normalizedEmail, ipAddress, DateTime.UtcNow);
-            throw new LoginLockedException();
-        }
-
         var user = await _context.Users
             .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
 
@@ -60,7 +52,13 @@ public class AuthService : IAuthService
             attempt.NumberOfAt = 0;
             attempt.ClearedAt = DateTime.UtcNow;
         }
-        if (attemptsToClear.Count > 0)
+
+        var staleBlockedLogin = await _context.BlockedLogins
+            .FirstOrDefaultAsync(blocked => blocked.Email == normalizedEmail);
+        if (staleBlockedLogin is not null)
+            _context.BlockedLogins.Remove(staleBlockedLogin);
+
+        if (attemptsToClear.Count > 0 || staleBlockedLogin is not null)
             await _context.SaveChangesAsync();
 
         var (token, expiresAt) = _tokenService.GenerateToken(user);
@@ -185,6 +183,12 @@ public class AuthService : IAuthService
 
         if (attempt is not null)
         {
+            if (now - attempt.AttemptedAt >= FailedAttemptWindow || now < attempt.AttemptedAt)
+                attempt.NumberOfAt = 0;
+
+            if (attempt.NumberOfAt >= LoginLockedException.AttemptLimit)
+                return attempt;
+
             attempt.Email = email;
             attempt.NumberOfAt += 1;
             attempt.AttemptedAt = now;
@@ -211,32 +215,7 @@ public class AuthService : IAuthService
     {
         var now = DateTime.UtcNow;
         var attempt = await RecordAttemptAsync(email, ipAddress, now);
-
-        // Se o número de tentativas deste IP atingiu o limite (5), bloqueia imediatamente
-        if (attempt.NumberOfAt >= LoginLockedException.AttemptLimit)
-        {
-            var blockedLogin = await _context.BlockedLogins
-                .FirstOrDefaultAsync(blocked => blocked.Email == email);
-            if (blockedLogin is null)
-            {
-                _context.BlockedLogins.Add(new BlockedLogin
-                {
-                    Email = email,
-                    BlockedAt = now,
-                    FailedAttempts = attempt.NumberOfAt,
-                    CreatedAt = now
-                });
-                await _context.SaveChangesAsync();
-            }
-            return true;
-        }
-
-        return false;
-    }
-
-    private async Task RecordBlockedLoginAttemptAsync(string email, string? ipAddress)
-    {
-        await RecordAttemptAsync(email, ipAddress, DateTime.UtcNow);
+        return attempt.NumberOfAt >= LoginLockedException.AttemptLimit;
     }
 
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
