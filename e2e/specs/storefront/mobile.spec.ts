@@ -48,11 +48,30 @@ test.describe("Vitrine — Carrinho Mobile @storefront", () => {
 
   test("deve fechar o drawer ao tocar no overlay sem esvaziar a sacola", async ({ page }) => {
     const openButton = page.locator(".mobile-cart-button");
-    await page.locator(".product-card").filter({ hasText: "Carne" }).first()
-      .getByRole("button", { name: /adicionar/i }).click();
+    let resumeCatalogRequest!: () => void;
+    const catalogRequestGate = new Promise<void>((resolve) => {
+      resumeCatalogRequest = resolve;
+    });
+    await page.route("**/api/products", async (route) => {
+      await catalogRequestGate;
+      await route.continue();
+    });
+
+    const catalogResponsePromise = page.waitForResponse(
+      (response) => response.url().endsWith("/api/products") && response.request().method() === "GET",
+    );
+    await page.reload();
+    const addCarneButton = page.locator(".product-card").filter({ hasText: "Carne" }).first()
+      .getByRole("button", { name: /adicionar/i });
+    await expect(addCarneButton).toBeEnabled();
+    await addCarneButton.click();
 
     await expect(openButton).toHaveAttribute("aria-label", /1 itens/);
     await expect(page.locator(".mobile-cart-sheet")).toBeVisible();
+
+    resumeCatalogRequest();
+    expect((await catalogResponsePromise).ok()).toBeTruthy();
+    await expect(openButton).toHaveAttribute("aria-label", /1 itens/);
 
     await page.locator(".mobile-cart-overlay").click({ position: { x: 10, y: 10 } });
     await expect(page.locator(".mobile-cart-sheet")).not.toBeVisible();

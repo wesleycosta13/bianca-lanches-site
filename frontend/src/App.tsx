@@ -140,7 +140,7 @@ function App() {
         description: product.description || item.description,
         image: product.imageUrl || item.image,
         isAvailable: product.isAvailable,
-        variants: product.variants.map((variant) => ({ id: String(variant.id), label: variant.label, price: variant.isAvailable ? variant.price : null })),
+        variants: product.variants.map((variant) => ({ id: variant.label, label: variant.label, price: variant.isAvailable ? variant.price : null })),
       } : { ...item, isAvailable: true };
     })
     .filter((item) => item.isAvailable);
@@ -233,9 +233,11 @@ function App() {
 
     const orderItems = cartItems.map((line) => {
       const product = productsByName.get(line.item.name.trim().toLocaleLowerCase("pt-BR"));
-      const variantId = Number(line.variantId);
-      const variantExists = product?.variants.some((variant) => variant.id === variantId && variant.isAvailable);
-      return product && variantExists ? { ProductId: product.id, VariantId: variantId, Quantity: line.quantity } : null;
+      const variant = product?.variants.find((entry) =>
+        entry.label.trim().toLocaleLowerCase("pt-BR") === line.variant.label.trim().toLocaleLowerCase("pt-BR")
+        && entry.isAvailable,
+      );
+      return product && variant ? { ProductId: product.id, VariantId: variant.id, Quantity: line.quantity } : null;
     });
     if (orderItems.some((item) => item === null)) {
       setConfirmationError("Um ou mais produtos não estão sincronizados com o catálogo. Atualize a página e tente novamente.");

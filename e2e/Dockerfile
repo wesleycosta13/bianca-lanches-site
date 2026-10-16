@@ -13,6 +13,7 @@ RUN npm ci
 # Copia dos arquivos de configuração e suite de testes
 COPY e2e/tsconfig.json e2e/playwright.config.ts ./
 COPY e2e/src/ ./src/
+COPY e2e/setup/ ./setup/
 COPY e2e/specs/ ./specs/
 
 # Script de entrada (aguarda a aplicação e executa testes)
